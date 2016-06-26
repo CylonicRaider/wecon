@@ -21,8 +21,6 @@ this.Terminal = function() {
     /* Actually decode */
     _decode: function(codes) {
       var ret = "", i = 0, l = codes.length;
-      if (! l) return "";
-      /* Decode bulk */
       while (i < l) {
         if ((codes[i] & 0x80) == 0x00) {
           /* ASCII byte */
@@ -30,13 +28,12 @@ this.Terminal = function() {
         } else if ((codes[i] & 0xC0) == 0x80) {
           /* Orphan continuation byte */
           ret += this.replacement;
-          while ((codes[i] & 0xC0) == 0xC0) i++;
         } else {
           /* Proper sequence */
           var cl = 1, v = codes[i++];
           /* Determine length */
           while (cl < 6 && v >> (6 - cl) & 1) cl++;
-          var cp = v & (1 << (6 - cl)) - 1;
+          var sl = cl + 1, cp = v & (1 << (6 - cl)) - 1;
           /* Check for truncated sequences */
           if (l - i < cl) {
             ret += this.replacement;
@@ -50,7 +47,8 @@ this.Terminal = function() {
           }
           /* Verify the sequence was not interrupted */
           if (cl) {
-            ret += this.replacement;
+            sl -= cl;
+            while (sl--) ret += this.replacement;
             continue;
           }
           ret += this._fromCodePoint(cp);
