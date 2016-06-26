@@ -24,6 +24,20 @@ this.Terminal = function() {
     this.scrollback = options.scrollback;
   }
 
+  Terminal.prototype = {
+    /* Text attribute bits */
+    ATTR_BOLD     :   1, /* Bold */
+    ATTR_DIM      :   2, /* Half-bright */
+    ATTR_ITALIC   :   4, /* Italic */
+    ATTR_UNDERLINE:   8, /* Underlined */
+    ATTR_BLINK    :  16, /* Blinking */
+    /* 6 is not assigned */
+    ATTR_REVERSE  :  64, /* Reverse video */
+    ATTR_HIDDEN   : 128, /* Text hidden */
+    ATTR_STRIKE   : 256, /* Strikethrough */
+    /* Double underline is NYI */
+  };
+
   /* Return export */
   return Terminal;
 }();
