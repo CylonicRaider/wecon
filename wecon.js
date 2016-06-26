@@ -3,6 +3,64 @@
 
 /* Hide implementation details in namespace */
 this.Terminal = function() {
+  /* Passive UTF-8 decoder */
+  function UTF8Dec() {
+    this._buffered = [];
+    this.replacement = "\ufffd";
+  }
+
+  UTF8Dec.prototype = {
+    /* String.fromCodePoint shim */
+    _fromCodePoint: (String.fromCodePoint) ?
+        String.fromCodePoint.bind(String) : function(cp) {
+      if (cp <=  0xFFFF) return String.fromCharCode(cp);
+      if (cp > 0x10FFFF) throw RangeError('Bad code point: ' + cp);
+      cp -= 0x10000;
+      return String.fromCharCode(cp >>> 10 | 0xD800, cp & 0x3FF | 0xDC00);
+    },
+    /* Actually decode */
+    _decode: function(codes) {
+      var ret = "", i = 0, l = codes.length;
+      if (! l) return "";
+      /* Decode bulk */
+      while (i < l) {
+        if ((codes[i] & 0x80) == 0x00) {
+          /* ASCII byte */
+          ret += String.fromCharCode(codes[i++]);
+        } else if ((codes[i] & 0xC0) == 0x80) {
+          /* Orphan continuation byte */
+          ret += this.replacement;
+          while ((codes[i] & 0xC0) == 0xC0) i++;
+        } else {
+          /* Proper sequence */
+          var cl = 1, v = codes[i++];
+          /* Determine length */
+          while (cl < 6 && v >> (6 - cl) & 1) cl++;
+          var cp = v & (1 << (6 - cl)) - 1;
+          /* Check for truncated sequences */
+          if (l - i < cl) {
+            ret += this.replacement;
+            break;
+          }
+          /* Compose codepoint */
+          for (; cl; cl--) {
+            v = codes[i++];
+            if (v & 0xC0 != 0xC0) break;
+            cp = (cp << 6) | v & 0x3F;
+          }
+          /* Verify the sequence was not interrupted */
+          if (cl) {
+            ret += this.replacement;
+            continue;
+          }
+          ret += this._fromCodePoint(cp);
+        }
+      }
+      /* Done */
+      return ret;
+    }
+  };
+
   /* Actual terminal emulator. options specifies parameters of the terminal:
    * width     : The terminal should have the given (fixed) width; if not set,
    *             it will adapt to the container.
