@@ -1,7 +1,7 @@
 /* wecon -- Web Console emulator
  * https://github.com/CylonicRaider/wecon */
 
-/* Hide implementation details in namespace */
+/* Hide implementation details in closure */
 this.Terminal = function() {
   /* Passive UTF-8 decoder */
   function UTF8Dec() {
@@ -92,9 +92,10 @@ this.Terminal = function() {
         }
         /* Check if the buffer is (still) incomplete */
         if (! this._checkIncomplete(this._buffered)) {
-          /* Flush buffer into return value; cut bytes off input */
+          /* Flush buffer into return value */
           ret += this.flush();
         }
+        /* Cut buffered bytes off input */
         input = input.slice(i);
       }
       /* Scan for incomplete sequences and buffer them */
