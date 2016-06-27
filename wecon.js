@@ -18,6 +18,27 @@ this.Terminal = function() {
       cp -= 0x10000;
       return String.fromCharCode(cp >>> 10 | 0xD800, cp & 0x3FF | 0xDC00);
     },
+
+    /* Return by how many bytes the end of the buffer is incomplete, or zero
+     * if not */
+    _checkIncomplete: function(buffer) {
+      var i, e = buffer.length - 9;
+      if (e < 0) e = 0;
+      for (i = buffer.length - 1; i >= e; i--) {
+        /* Stop at ASCII bytes */
+        if (! (buffer[i] & 0x80)) break;
+        /* Skip continuation bytes */
+        if ((buffer[i] & 0xC0) == 0x80) continue;
+        /* Determine sequence length */
+        var sl = 2;
+        while (sl <= 7 && buffer[i] >> (7 - sl) & 1) sl++;
+        /* Done */
+        var ret = sl - (buffer.length - i);
+        return (ret < 0) ? 0 : ret;
+      }
+      return 0;
+    },
+
     /* Actually decode */
     _decode: function(codes) {
       var ret = "", i = 0, l = codes.length;
@@ -28,13 +49,14 @@ this.Terminal = function() {
         } else if ((codes[i] & 0xC0) == 0x80) {
           /* Orphan continuation byte */
           ret += this.replacement;
+          while ((codes[i] & 0xC0) == 0x80) i++;
         } else {
           /* Proper sequence */
           var cl = 1, v = codes[i++];
           /* Determine length */
-          while (cl < 6 && v >> (6 - cl) & 1) cl++;
+          while (cl <= 6 && v >> (6 - cl) & 1) cl++;
           var sl = cl + 1, cp = v & (1 << (6 - cl)) - 1;
-          /* Check for truncated sequences */
+          /* Handle truncated sequences */
           if (l - i < cl) {
             ret += this.replacement;
             break;
@@ -45,17 +67,58 @@ this.Terminal = function() {
             if (v & 0xC0 != 0xC0) break;
             cp = (cp << 6) | v & 0x3F;
           }
-          /* Verify the sequence was not interrupted */
+          /* Handle bad sequences */
           if (cl) {
-            sl -= cl;
-            while (sl--) ret += this.replacement;
+            ret += this.replacement;
             continue;
           }
+          /* Add to output */
           ret += this._fromCodePoint(cp);
         }
       }
       /* Done */
       return ret;
+    },
+
+    /* Decode the input or part of it, possibly buffering a codepoint */
+    decode: function(input) {
+      var ret = "", i;
+      /* Take care of buffered codepoint(s) */
+      if (this._buffered.length) {
+        /* Scan for continuation bytes and buffer them */
+        for (i = 0; i < input.length; i++) {
+          if ((input[i] & 0xC0) != 0x80) break;
+          this._buffered.push(input[i]);
+        }
+        /* Check if the buffer is (still) incomplete */
+        if (! this._checkIncomplete(this._buffered)) {
+          /* Flush buffer into return value; cut bytes off input */
+          ret += this.flush();
+        }
+        input = input.slice(i);
+      }
+      /* Scan for incomplete sequences and buffer them */
+      i = this._checkIncomplete(input);
+      if (i) {
+        var e = input.length - i;
+        var tail = Array.prototype.slice.apply(input.slice(e, input.length));
+        Array.prototype.splice.apply(this._buffered,
+          [this._buffered.length, 0].concat(tail));
+        input = input.slice(0, e);
+      }
+      /* Decode rest of input */
+      ret += this._decode(input);
+      return ret;
+    },
+
+    /* Forcefully drain the decoder and return any characters left */
+    flush: function() {
+      if (! this._buffered.length) return "";
+      /* buffered should only contain invalid sequences, but one can never
+       * know */
+      var b = this._buffered;
+      this._buffered = [];
+      return this._decode(b);
     }
   };
 
