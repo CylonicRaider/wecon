@@ -136,7 +136,9 @@ this.Terminal = function() {
    *             when set to positive infinity, arbitrarily many lines are
    *             stored.
    * Additional attributes:
-   * node: The DOM node the terminal is residing in.
+   * node   : The DOM node the terminal is residing in.
+   * curSize: The actual size of the terminal as a [width, height] array (in
+   *          character cells), or null if never shown yet.
    */
   function Terminal(options) {
     if (! options) options = {};
@@ -146,6 +148,7 @@ this.Terminal = function() {
     this.visualBell = options.visualBell;
     this.scrollback = options.scrollback;
     this.node = null;
+    this.curSize = null;
     this._resize = this.resize.bind(this);
   }
 
@@ -208,31 +211,41 @@ this.Terminal = function() {
       content.style.width = "";
       content.style.height = "";
       /* Calculate width and height */
+      var curWidth, curHeight;
       if (this.width) {
         /* Fixed width */
         content.style.width = this.width + "ch";
         this.node.style.minWidth = content.offsetWidth + "px";
+        curWidth = this.width;
       } else {
         /* Dynamic width */
         var sbSize = content.offsetWidth - content.clientWidth;
         var ch = parseFloat(measureStyle.width);
-        var w = (this.node.clientWidth - sbSize) / ch | 0;
-        content.style.width = w + "ch";
+        curWidth = (this.node.clientWidth - sbSize) / ch | 0;
+        content.style.width = curWidth + "ch";
         this.node.style.minWidth = "";
       }
       if (this.height) {
         /* Fixed height */
         content.style.height = this.height + "em";
         this.node.style.minHeight = content.offsetHeight + "px";
+        curHeight = this.height;
       } else {
         /* Dynamic height */
         var em = parseFloat(measureStyle.height);
-        var h = this.node.clientHeight / em | 0;
-        content.style.height = h + "em";
+        curHeight = this.node.clientHeight / em | 0;
+        content.style.height = curHeight + "em";
         this.node.style.minHeight = "";
       }
-      /* Store size for later checking */
+      /* Store pixel size for later checking */
       this._oldSize = [this.node.offsetWidth, this.node.offsetHeight];
+      /* Store window size */
+      if (this.curSize) {
+        this.curSize[0] = curWidth;
+        this.curSize[1] = curHeight;
+      } else {
+        this.curSize = [curWidth, curHeight];
+      }
     }
   };
 
