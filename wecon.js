@@ -14,7 +14,7 @@ this.Terminal = function() {
     _fromCodePoint: (String.fromCodePoint) ?
         String.fromCodePoint.bind(String) : function(cp) {
       if (cp <=  0xFFFF) return String.fromCharCode(cp);
-      if (cp > 0x10FFFF) throw RangeError('Bad code point: ' + cp);
+      if (cp > 0x10FFFF) throw RangeError("Bad code point: " + cp);
       cp -= 0x10000;
       return String.fromCharCode(cp >>> 10 | 0xD800, cp & 0x3FF | 0xDC00);
     },
@@ -135,13 +135,18 @@ this.Terminal = function() {
    *             lines "above" the display area are immediately discarded;
    *             when set to positive infinity, arbitrarily many lines are
    *             stored.
+   * Additional attributes:
+   * node: The DOM node the terminal is residing in.
    */
   function Terminal(options) {
+    if (! options) options = {};
     this.width = options.width;
     this.height = options.height;
     this.bell = options.bell;
     this.visualBell = options.visualBell;
     this.scrollback = options.scrollback;
+    this.node = null;
+    this._resize = this.resize.bind(this);
   }
 
   Terminal.prototype = {
@@ -156,6 +161,79 @@ this.Terminal = function() {
     ATTR_HIDDEN   : 128, /* Text hidden */
     ATTR_STRIKE   : 256, /* Strikethrough */
     /* Double underline is NYI */
+
+    /* Install the terminal into the given node
+     * If it is already mounted into another node, it is (entirely) removed
+     * from there.
+     */
+    mount: function(node) {
+      if (this.node) this.unmount();
+      this.node = node;
+      node.classList.add("wecon");
+      node.innerHTML = "<pre></pre>";
+      window.addEventListener("resize", this._resize);
+      this._oldSize = null;
+      this.resize();
+    },
+
+    /* Remove the terminal from its current node (if any) and make it
+     * "virtual"
+     * The node's contents are cleaned up, unless the "raw" argument
+     * is true.
+     */
+    unmount: function(raw) {
+      if (this.node && ! raw) {
+        this.node.classList.remove("wecon");
+        this.node.innerHTML = "";
+        window.removeEventListener("resize", this._resize);
+      }
+      this._oldSize = null;
+      this.node = null;
+    },
+
+    /* Update the sizes of the content area and the container */
+    resize: function() {
+      /* Ignore for "virtual" terminals */
+      if (! this.node) return;
+      /* Ignore if size not changed */
+      if (this._oldSize) {
+        if (this.node.offsetWidth == this._oldSize[0] &&
+            this.node.offsetHeight == this._oldSize[1])
+          return;
+      }
+      /* Extract content area node */
+      var content = this.node.getElementsByTagName("pre")[0];
+      var measureStyle = getComputedStyle(content, "::before");
+      /* Reset width and height for calculation */
+      content.style.width = "";
+      content.style.height = "";
+      /* Calculate width and height */
+      if (this.width) {
+        /* Fixed width */
+        content.style.width = this.width + "ch";
+        this.node.style.minWidth = content.offsetWidth + "px";
+      } else {
+        /* Dynamic width */
+        var sbSize = content.offsetWidth - content.clientWidth;
+        var ch = parseFloat(measureStyle.width);
+        var w = (this.node.clientWidth - sbSize) / ch | 0;
+        content.style.width = w + "ch";
+        this.node.style.minWidth = "";
+      }
+      if (this.height) {
+        /* Fixed height */
+        content.style.height = this.height + "em";
+        this.node.style.minHeight = content.offsetHeight + "px";
+      } else {
+        /* Dynamic height */
+        var em = parseFloat(measureStyle.height);
+        var h = this.node.clientHeight / em | 0;
+        content.style.height = h + "em";
+        this.node.style.minHeight = "";
+      }
+      /* Store size for later checking */
+      this._oldSize = [this.node.offsetWidth, this.node.offsetHeight];
+    }
   };
 
   /* Return export */

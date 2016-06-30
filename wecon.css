@@ -1,0 +1,44 @@
+/* wecon -- Web Console emulator
+ * https://github.com/CylonicRaider/wecon */
+
+/* Generic styles */
+.wecon, .wecon pre {
+  margin: 0;
+  padding: 0;
+}
+
+/* Main container */
+.wecon {
+  display: flex;
+  overflow: auto;
+  line-height: 1;
+  background: #101010;
+  color: white;
+}
+
+/* Content area */
+.wecon pre {
+  margin: auto;
+  background: black;
+  overflow: hidden;
+  box-sizing: content-box;
+}
+.wecon pre.scroll {
+  overflow-y: scroll;
+}
+
+/* Measurement box */
+.wecon pre::before {
+  content: "";
+  visibility: hidden;
+  width: 1ch;
+  height: 1em;
+}
+
+/* Character cells */
+.wecon pre .cell {
+  display: inline-block;
+  width: 1ch;
+  text-align: center;
+  overflow: hidden;
+}
