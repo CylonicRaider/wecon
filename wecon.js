@@ -361,8 +361,15 @@ this.Terminal = function() {
           ln.appendChild(this._cells.get());
         /* Insert cursor */
         var cursor = content.getElementsByClassName("cursor")[0];
-        if (! cursor) cursor = makeNode("span", "cursor");
-        ln.insertBefore(cursor, cells[x] && cells[x].nextSibling);
+        if (! cursor) {
+          cursor = makeNode("span", "cursor");
+        }
+        if (x >= this.width) {
+          cursor.classList.add('overflow');
+        } else {
+          cursor.classList.remove('overflow');
+        }
+        ln.insertBefore(cursor, cells[x]);
       }
       /* Write back cursor coordinates */
       this.curPos[0] = x;

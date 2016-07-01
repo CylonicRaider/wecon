@@ -63,7 +63,7 @@
 }
 
 /* Cursor after last column */
-.wecon pre .cell + .cursor:last-child {
+.wecon pre .cursor.overflow {
   margin-left: -1ch;
 }
 
