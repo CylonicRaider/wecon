@@ -264,7 +264,7 @@ this.Terminal = function() {
         /* Dynamic width */
         var sbSize = content.offsetWidth - content.clientWidth;
         var ch = parseFloat(measureStyle.width);
-        curWidth = (this.node.clientWidth - sbSize) / ch | 0;
+        curWidth = (this.node.offsetWidth - sbSize) / ch | 0;
         content.style.width = curWidth + "ch";
         this.node.style.minWidth = "";
       }
@@ -276,7 +276,7 @@ this.Terminal = function() {
       } else {
         /* Dynamic height */
         var em = parseFloat(measureStyle.height);
-        curHeight = this.node.clientHeight / em | 0;
+        curHeight = this.node.offsetHeight / em | 0;
         content.style.height = curHeight + "em";
         this.node.style.minHeight = "";
       }
