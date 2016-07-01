@@ -22,6 +22,7 @@
   background: black;
   overflow: hidden;
   box-sizing: content-box;
+  cursor: text;
 }
 .wecon pre.scroll {
   overflow-y: scroll;
@@ -30,9 +31,15 @@
 /* Measurement box */
 .wecon pre::before {
   content: "";
-  visibility: hidden;
+  display: none;
   width: 1ch;
   height: 1em;
+}
+
+/* Lines */
+.wecon pre div {
+  height: 1em;
+  overflow: hidden;
 }
 
 /* Character cells */
@@ -41,4 +48,27 @@
   width: 1ch;
   text-align: center;
   overflow: hidden;
+}
+
+/* Cursor */
+.wecon pre .cursor {
+  display: inline-block;
+  width: 1ch;
+  height: 1em;
+}
+.wecon pre .cursor::after {
+  content: "\2007"; /* U+2007 FIGURE SPACE */
+  text-decoration: underline;
+  animation: wecon-blink 0.5s linear infinite;
+}
+
+/* Cursor after last column */
+.wecon pre .cell + .cursor:last-child {
+  margin-left: -1ch;
+}
+
+@keyframes wecon-blink {
+  from { visibility: visible; }
+  50% { visibility: hidden; }
+  to { visibility: hidden; }
 }

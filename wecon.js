@@ -3,6 +3,13 @@
 
 /* Hide implementation details in closure */
 this.Terminal = function() {
+  /* Convenience function to create a DOM node */
+  function makeNode(tagName, className) {
+    var ret = document.createElement(tagName);
+    if (className) ret.className = className;
+    return ret;
+  }
+
   /* Passive UTF-8 decoder */
   function UTF8Dec() {
     this._buffered = [];
@@ -123,6 +130,33 @@ this.Terminal = function() {
     }
   };
 
+  /* DOM node accumulator
+   * New nodes are created with the given tag and class. The node cache will
+   * not grow larger than maxLength nodes.
+   */
+  function NodeCache(tagName, className, maxLength) {
+    this.tagName = tagName;
+    this.className = className;
+    this.maxLength = maxLength;
+    this._nodes = [];
+  }
+
+  NodeCache.prototype = {
+    /* Obtain a node from the cache or create a new one */
+    get: function() {
+      if (this._nodes.length) return this._nodes.pop();
+      return makeNode(this.tagName, this.className);
+    },
+
+    /* Add a node to the cache or dispose of it */
+    add: function(node) {
+      if (this._nodes.length >= this.maxLength) return;
+      node.className = this.className;
+      node.innerHTML = "";
+      this._nodes.push(node);
+    }
+  };
+
   /* Actual terminal emulator. options specifies parameters of the terminal:
    * width     : The terminal should have the given (fixed) width; if not set,
    *             it will adapt to the container.
@@ -131,14 +165,20 @@ this.Terminal = function() {
    *             should be invoked for a BEL character.
    * visualBell: If true, bells will be indicated by shortly flashing the
    *             terminal output, independently from bell.
-   * scrollback: Maximum length of the scrollback buffer. When not set, all
-   *             lines "above" the display area are immediately discarded;
-   *             when set to positive infinity, arbitrarily many lines are
-   *             stored.
+   * scrollback: Length of the scrollback buffer. When not set or less than
+   *             the current height, all lines "above" the display area are
+   *             immediately discarded; when set to positive infinity,
+   *             arbitrarily many lines are stored.
    * Additional attributes:
-   * node   : The DOM node the terminal is residing in.
-   * curSize: The actual size of the terminal as a [width, height] array (in
-   *          character cells), or null if never shown yet.
+   * node  : The DOM node the terminal is residing in.
+   * size  : The actual size of the terminal as a [width, height] array (in
+   *         character cells), or null if never shown yet.
+   * curPos: The current cursor position as an (x, y) array. Both coordinates
+   *         must be not less than zero; the y coordinate must be less than
+   *         the height and the x coordinate must be not greater (!) than the
+   *         width. The initial value is [0, 0].
+   *         NOTE (explicitly) that the x coordinate may be equal to the
+   *              width.
    */
   function Terminal(options) {
     if (! options) options = {};
@@ -148,7 +188,10 @@ this.Terminal = function() {
     this.visualBell = options.visualBell;
     this.scrollback = options.scrollback;
     this.node = null;
-    this.curSize = null;
+    this.size = null;
+    this.curPos = [0, 0];
+    this._decoder = new UTF8Dec();
+    this._cells = new NodeCache("span", "cell", 1000);
     this._resize = this.resize.bind(this);
   }
 
@@ -240,12 +283,90 @@ this.Terminal = function() {
       /* Store pixel size for later checking */
       this._oldSize = [this.node.offsetWidth, this.node.offsetHeight];
       /* Store window size */
-      if (this.curSize) {
-        this.curSize[0] = curWidth;
-        this.curSize[1] = curHeight;
+      if (this.size) {
+        this.size[0] = curWidth;
+        this.size[1] = curHeight;
       } else {
-        this.curSize = [curWidth, curHeight];
+        this.size = [curWidth, curHeight];
       }
+      /* Update cursor */
+      this.placeCursor();
+    },
+
+    /* Add line nodes as necessary and possibly remove ones to maintain
+     * the scroll buffer length */
+    growLines: function() {
+      /* Obtain contents and lines */
+      var content = this.node.getElementsByTagName("pre")[0];
+      var lines = content.children;
+      /* Search cursor */
+      var l, cursor = null;
+      for (l = 0; l < lines.length; l++) {
+        var cl = lines[l].getElementsByClassName("cursor");
+        if (cl.length) {
+          cursor = cl[0];
+          break;
+        }
+      }
+      /* Append lines as necessary */
+      var fullLength;
+      if (cursor) {
+        /* Actual position of cursor node */
+        var ep = l - (this.size[1] - lines.length);
+        if (ep > this.curPos[1]) {
+          /* If the cursor is below the expected position, lines have to be
+           * added */
+          fullLength = lines.length + ep - this.curPos[1];
+        } else {
+          /* Otherwise, just keep it as is */
+          fullLength = lines.length;
+        }
+        /* Ensure the window is filled */
+        if (fullLength < this.size[1]) fullLength = this.size[1];
+      } else {
+        fullLength = this.size[1];
+      }
+      while (lines.length < fullLength)
+        content.appendChild(makeNode("div"));
+      /* Strip lines up to scroll length */
+      var sl = this.scrollback;
+      if (! sl || sl < this.size[1]) sl = this.size[1];
+      while (lines.length > sl) {
+        /* Garbage-collect cells */
+        Array.prototype.forEach.call(lines[0].querySelectorAll('.cell'),
+                                     this._cells.add.bind(this._cells));
+        /* Actually dispose of line */
+        content.removeChild(lines[0]);
+      }
+    },
+
+    /* Move the cursor to the given coordinates or to the stored cursor
+     * position
+     */
+    placeCursor: function(x, y) {
+      /* Resolve coordinates */
+      if (x == null) x = this.curPos[0];
+      if (y == null) y = this.curPos[1];
+      /* Only access DOM when mounted */
+      if (this.node) {
+        /* Ensure that there are enough lines */
+        this.growLines();
+        /* Get line */
+        var content = this.node.getElementsByTagName("pre")[0];
+        var lines = content.children;
+        var ln = lines[lines.length - (this.size[1] - y)];
+        /* Get cell */
+        var cells = ln.children;
+        while (cells.length <= x)
+          ln.appendChild(this._cells.get());
+        /* Insert cursor */
+        var cursor = content.getElementsByClassName("cursor")[0];
+        if (! cursor) cursor = makeNode("span", "cursor");
+        ln.insertBefore(cursor, cells[x] && cells[x].nextSibling);
+      }
+      /* Write back cursor coordinates */
+      this.curPos[0] = x;
+      this.curPos[1] = y;
     }
   };
 
