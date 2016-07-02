@@ -218,6 +218,8 @@ this.Terminal = function() {
       this.node = node;
       node.classList.add("wecon");
       node.innerHTML = "<pre></pre>";
+      if (this.scrollback != null)
+        node.firstElementChild.classList.add("scroll");
       window.addEventListener("resize", this._resize);
       this._oldSize = null;
       this.resize();
@@ -259,6 +261,7 @@ this.Terminal = function() {
       if (this.width) {
         /* Fixed width */
         content.style.width = this.width + "ch";
+        content.style.paddingRight = "";
         this.node.style.minWidth = content.offsetWidth + "px";
         curWidth = this.width;
       } else {
@@ -266,7 +269,9 @@ this.Terminal = function() {
         var sbSize = content.offsetWidth - content.clientWidth;
         var ch = parseFloat(measureStyle.width);
         curWidth = (this.node.offsetWidth - sbSize) / ch | 0;
-        content.style.width = curWidth + "ch";
+        var ew = (curWidth * ch + sbSize);
+        content.style.width = ew + "px";
+        content.style.paddingRight = (this.node.offsetWidth - ew) + "px";
         this.node.style.minWidth = "";
       }
       if (this.height) {
