@@ -190,6 +190,7 @@ this.Terminal = function() {
     this.node = null;
     this.size = null;
     this.curPos = [0, 0];
+    this._offscreenLines = 0;
     this._decoder = new UTF8Dec();
     this._cells = new NodeCache("span", "cell", 1000);
     this._resize = this.resize.bind(this);
@@ -293,50 +294,31 @@ this.Terminal = function() {
       this.placeCursor();
     },
 
-    /* Add line nodes as necessary and possibly remove ones to maintain
-     * the scroll buffer length */
-    growLines: function() {
+    /* Add line nodes as necessary to be able to display the given
+     * coordinate, or the y part of the cursor position */
+    growLines: function(y) {
+      if (y == null) y = this.curPos[1];
       /* Obtain contents and lines */
       var content = this.node.getElementsByTagName("pre")[0];
       var lines = content.children;
-      /* Search cursor */
-      var l, cursor = null;
-      for (l = 0; l < lines.length; l++) {
-        var cl = lines[l].getElementsByClassName("cursor");
-        if (cl.length) {
-          cursor = cl[0];
-          break;
-        }
-      }
-      /* Append lines as necessary */
-      var fullLength;
-      if (cursor) {
-        /* Actual position of cursor node */
-        var ep = l - (this.size[1] - lines.length);
-        if (ep > this.curPos[1]) {
-          /* If the cursor is below the expected position, lines have to be
-           * added */
-          fullLength = lines.length + ep - this.curPos[1];
-        } else {
-          /* Otherwise, just keep it as is */
-          fullLength = lines.length;
-        }
-        /* Ensure the window is filled */
-        if (fullLength < this.size[1]) fullLength = this.size[1];
-      } else {
-        fullLength = this.size[1];
-      }
+      /* Amend lines */
+      var fullLength = this._offscreenLines + y + 1;
       while (lines.length < fullLength)
         content.appendChild(makeNode("div"));
-      /* Strip lines up to scroll length */
-      var sl = this.scrollback;
-      if (! sl || sl < this.size[1]) sl = this.size[1];
-      while (lines.length > sl) {
+      /* Update _offscreenLines */
+      if (y >= this.size[1])
+        this._offscreenLines += y - this.size[1];
+      /* Remove lines to maintain scroll buffer size */
+      var capLength = this.scrollback;
+      if (capLength < this.size[1]) capLength = this.size[1];
+      while (lines.length > capLength) {
         /* Garbage-collect cells */
         Array.prototype.forEach.call(lines[0].querySelectorAll(".cell"),
                                      this._cells.add.bind(this._cells));
         /* Actually dispose of line */
         content.removeChild(lines[0]);
+        /* Decrement offscreen line count */
+        this._offscreenLines--;
       }
     },
 
@@ -349,11 +331,11 @@ this.Terminal = function() {
       /* Only access DOM when mounted */
       if (this.node) {
         /* Ensure that there are enough lines */
-        this.growLines();
+        this.growLines(y);
         /* Get line */
         var content = this.node.getElementsByTagName("pre")[0];
         var lines = content.children;
-        var ln = lines[lines.length - (this.size[1] - y)];
+        var ln = lines[y + this._offscreenLines];
         /* Remove old cursor */
         var cursor = content.getElementsByClassName("cursor")[0];
         if (cursor) {
@@ -407,7 +389,6 @@ this.Terminal = function() {
         /* Get line array */
         var content = this.node.getElementsByTagName("pre")[0];
         var lines  = content.children;
-        var lo = lines.length - this.size[1];
         /* Current line, current cell */
         var cl = null, cc = null;
         /* For each character */
@@ -421,20 +402,15 @@ this.Terminal = function() {
           if (pos[0] == this.size[0]) {
             pos[0] = 0;
             pos[1]++;
-            if (pos[1] == this.size[1]) {
-              /* Add new line */
-              pos[1]--;
-              cl = makeNode("div");
-              lines.appendChild(cl);
-            } else {
-              cl = lines[pos[1] + lo];
-            }
+            this.growLines(pos[1]);
+            if (pos[1] == this.size[1]) pos[1]--;
+            cl = lines[pos[1] + this._offscreenLines];
             /* Select first cell */
             cc = null;
             advanceCell();
           } else if (! cl) {
             /* First loop run -- select correct line and cell */
-            cl = lines[pos[1] + lo];
+            cl = lines[pos[1] + this._offscreenLines];
             advanceCell();
             for (var i = 0; i < pos[0]; i++) advanceCell();
           }
