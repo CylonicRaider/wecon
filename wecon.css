@@ -55,6 +55,7 @@
   display: inline-block;
   width: 1ch;
   height: 1em;
+  vertical-align: top;
 }
 .wecon pre .cursor::after {
   content: "\2007"; /* U+2007 FIGURE SPACE */

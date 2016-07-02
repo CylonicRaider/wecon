@@ -27,6 +27,7 @@ h1 {
 window.addEventListener('load', function() {
   window.term = new Terminal();
   term.mount(document.getElementById('terminal'));
+  term.writeTextRaw("Hello World!");
 });
     </script>
   </head>

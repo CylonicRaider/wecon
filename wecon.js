@@ -333,7 +333,7 @@ this.Terminal = function() {
       if (! sl || sl < this.size[1]) sl = this.size[1];
       while (lines.length > sl) {
         /* Garbage-collect cells */
-        Array.prototype.forEach.call(lines[0].querySelectorAll('.cell'),
+        Array.prototype.forEach.call(lines[0].querySelectorAll(".cell"),
                                      this._cells.add.bind(this._cells));
         /* Actually dispose of line */
         content.removeChild(lines[0]);
@@ -341,8 +341,7 @@ this.Terminal = function() {
     },
 
     /* Move the cursor to the given coordinates or to the stored cursor
-     * position
-     */
+     * position */
     placeCursor: function(x, y) {
       /* Resolve coordinates */
       if (x == null) x = this.curPos[0];
@@ -355,25 +354,99 @@ this.Terminal = function() {
         var content = this.node.getElementsByTagName("pre")[0];
         var lines = content.children;
         var ln = lines[lines.length - (this.size[1] - y)];
+        /* Remove old cursor */
+        var cursor = content.getElementsByClassName("cursor")[0];
+        if (cursor) {
+          cursor.parentNode.removeChild(cursor);
+        } else {
+          cursor = makeNode("span", "cursor");
+        }
         /* Get cell */
         var cells = ln.children;
         while (cells.length <= x)
           ln.appendChild(this._cells.get());
         /* Insert cursor */
-        var cursor = content.getElementsByClassName("cursor")[0];
-        if (! cursor) {
-          cursor = makeNode("span", "cursor");
-        }
         if (x >= this.width) {
-          cursor.classList.add('overflow');
+          cursor.classList.add("overflow");
         } else {
-          cursor.classList.remove('overflow');
+          cursor.classList.remove("overflow");
         }
         ln.insertBefore(cursor, cells[x]);
       }
       /* Write back cursor coordinates */
       this.curPos[0] = x;
       this.curPos[1] = y;
+    },
+
+    /* Draw some text onto the output area
+     * Writing starts at pos (falling back to the current cursor coordinates
+     * when pos is null, or falling back at the x and y coordinate of the
+     * cursor is the respective elements of pos are null), wraps lines as
+     * appropriate, and stores the new cursor position unless noMove is true.
+     * Control characters (including CR and LF) are rendered as normal text.
+     */
+    writeTextRaw: function(text, pos, noMove) {
+      /* Outlined from below */
+      var advanceCell = function() {
+        do {
+          cc = (cc) ? cc.nextElementSibling : cl.children[0];
+          if (! cc) {
+            cc = this._cells.get();
+            cl.appendChild(cc);
+          }
+        } while (! cc.classList.contains("cell"));
+      }.bind(this);
+      /* Resolve initial position */
+      if (! pos) pos = [this.curPos[0], this.curPos[1]];
+      if (pos[0] == null) pos[0] = this.curPos[0];
+      if (pos[1] == null) pos[1] = this.curPos[1];
+      /* Save decremented width; do not perform costy DOM manipulation if
+       * no text given or not mounted */
+      var tlm1 = text.length - 1;
+      if (tlm1 >= 0 && this.node) {
+        /* Get line array */
+        var content = this.node.getElementsByTagName("pre")[0];
+        var lines  = content.children;
+        var lo = lines.length - this.size[1];
+        /* Current line, current cell */
+        var cl = null, cc = null;
+        /* For each character */
+        for (var i = 0; i <= tlm1; i++) {
+          var ch = text[i];
+          /* Decode surrogate pairs */
+          if (/[\uD800-\uDBFF]/.test(ch) && i < tlm1 &&
+              /[\uDC00-\uDFFF]/.test(text[i + 1]))
+            ch += text[++i];
+          /* Perform line wrapping; advance cell */
+          if (pos[0] == this.size[0]) {
+            pos[0] = 0;
+            pos[1]++;
+            if (pos[1] == this.size[1]) {
+              /* Add new line */
+              pos[1]--;
+              cl = makeNode("div");
+              lines.appendChild(cl);
+            } else {
+              cl = lines[pos[1] + lo];
+            }
+            /* Select first cell */
+            cc = null;
+            advanceCell();
+          } else if (! cl) {
+            /* First loop run -- select correct line and cell */
+            cl = lines[pos[1] + lo];
+            advanceCell();
+            for (var i = 0; i < pos[0]; i++) advanceCell();
+          }
+          /* Embed character into cell */
+          cc.textContent = ch;
+          /* Advance character */
+          pos[0]++;
+          if (pos[0] != this.size[0]) advanceCell();
+        }
+      }
+      /* Update cursor position if told to */
+      if (! noMove) this.placeCursor(pos[0], pos[1]);
     }
   };
 
