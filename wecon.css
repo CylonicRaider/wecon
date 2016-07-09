@@ -24,6 +24,12 @@
   box-sizing: content-box;
   cursor: text;
 }
+.wecon pre.fixed-width {
+  margin-left: auto;
+}
+.wecon pre.fixed-height {
+  margin-top: auto;
+}
 .wecon pre.scroll {
   overflow-y: scroll;
 }

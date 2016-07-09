@@ -260,6 +260,7 @@ this.Terminal = function() {
       var curWidth, curHeight;
       if (this.width) {
         /* Fixed width */
+        content.classList.add('fixed-width');
         content.style.width = this.width + "ch";
         content.style.paddingRight = "";
         this.node.style.minWidth = content.offsetWidth + "px";
@@ -270,12 +271,14 @@ this.Terminal = function() {
         var ch = parseFloat(measureStyle.width);
         curWidth = (this.node.offsetWidth - sbSize) / ch | 0;
         var ew = (curWidth * ch + sbSize);
+        content.classList.remove('fixed-width');
         content.style.width = ew + "px";
         content.style.paddingRight = (this.node.offsetWidth - ew) + "px";
         this.node.style.minWidth = "";
       }
       if (this.height) {
         /* Fixed height */
+        content.classList.add('fixed-height');
         content.style.height = this.height + "em";
         this.node.style.minHeight = content.offsetHeight + "px";
         curHeight = this.height;
@@ -283,6 +286,7 @@ this.Terminal = function() {
         /* Dynamic height */
         var em = parseFloat(measureStyle.height);
         curHeight = this.node.offsetHeight / em | 0;
+        content.classList.remove('fixed-height');
         content.style.height = curHeight + "em";
         this.node.style.minHeight = "";
       }
