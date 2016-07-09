@@ -53,7 +53,7 @@
 /* Cursor */
 .wecon pre .cursor {
   display: inline-block;
-  width: 1ch;
+  width: 0;
   height: 1em;
   vertical-align: top;
 }

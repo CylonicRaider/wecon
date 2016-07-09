@@ -300,7 +300,9 @@ this.Terminal = function() {
     },
 
     /* Add line nodes as necessary to be able to display the given
-     * coordinate, or the y part of the cursor position */
+     * coordinate, or the y part of the cursor position
+     * Returns the line in question.
+     */
     growLines: function(y) {
       if (y == null) y = this.curPos[1];
       /* Obtain contents and lines */
@@ -325,6 +327,45 @@ this.Terminal = function() {
         /* Decrement offscreen line count */
         this._offscreenLines--;
       }
+      return lines[this._offscreenLines + y];
+    },
+
+    /* Return the cell immediately following the given one, excluding the
+     * cursor (if any)
+     * If make is true, a new cell is created on demand.
+     */
+    _nextCell: function(cell, make) {
+      var line = cell.parentNode;
+      do {
+        if (cell) cell = cell.nextElementSibling;
+        if (! cell) {
+          if (! make) return null;
+          cell = this._cells.get();
+          line.appendChild(cell);
+        }
+      } while (! cell.classList.contains("cell"));
+      return cell;
+    },
+
+    /* Ensure there are enough cells in the given line to reach the
+     * given x coordinate
+     * If pad is true, the cells left of the cell in question are filled
+     * with spaces if empty.
+     * Returns the (possibly) newly-made cell at the given position.
+     */
+    growCells: function(line, x, pad) {
+      var children = line.children, cell = children[0];
+      for (var i = 0; i <= x; i++) {
+        if (! cell) {
+          cell = this._cells.get();
+          line.appendChild(cell);
+        } else if (! cell.classList.contains("cell")) {
+          cell = this._nextCell(cell, true);
+        }
+        if (pad && ! cell.textContent) cell.textContent = " ";
+        if (i < x) cell = this._nextCell(cell);
+      }
+      return cell;
     },
 
     /* Move the cursor to the given coordinates or to the stored cursor
@@ -335,30 +376,20 @@ this.Terminal = function() {
       if (y == null) y = this.curPos[1];
       /* Only access DOM when mounted */
       if (this.node) {
-        /* Ensure that there are enough lines */
-        this.growLines(y);
-        /* Get line */
-        var content = this.node.getElementsByTagName("pre")[0];
-        var lines = content.children;
-        var ln = lines[y + this._offscreenLines];
-        /* Remove old cursor */
-        var cursor = content.getElementsByClassName("cursor")[0];
-        if (cursor) {
-          cursor.parentNode.removeChild(cursor);
-        } else {
-          cursor = makeNode("span", "cursor");
-        }
-        /* Get cell */
-        var cells = ln.children;
-        while (cells.length <= x)
-          ln.appendChild(this._cells.get());
+        /* Extract current cell */
+        var line = this.growLines(y);
+        var cell = this.growCells(line, x - 1, false);
+        /* Extract or create cursor */
+        var cursor = line.parentNode.getElementsByClassName("cursor")[0];
+        if (! cursor) cursor = makeNode("span", "cursor");
         /* Insert cursor */
         if (x >= this.width) {
           cursor.classList.add("overflow");
         } else {
           cursor.classList.remove("overflow");
         }
-        ln.insertBefore(cursor, cells[x]);
+        line.insertBefore(cursor, (cell) ? cell.nextElementSibling :
+            line.firstElementChild);
       }
       /* Write back cursor coordinates */
       this.curPos[0] = x;
@@ -391,16 +422,6 @@ this.Terminal = function() {
      * Control characters (including CR and LF) are rendered as normal text.
      */
     writeTextRaw: function(text, pos, noMove) {
-      /* Outlined from below */
-      var advanceCell = function() {
-        do {
-          cc = (cc) ? cc.nextElementSibling : cl.children[0];
-          if (! cc) {
-            cc = this._cells.get();
-            cl.appendChild(cc);
-          }
-        } while (! cc.classList.contains("cell"));
-      }.bind(this);
       /* Resolve initial position */
       if (! pos) pos = [this.curPos[0], this.curPos[1]];
       if (pos[0] == null) pos[0] = this.curPos[0];
@@ -425,23 +446,20 @@ this.Terminal = function() {
           if (pos[0] == this.size[0]) {
             pos[0] = 0;
             pos[1]++;
-            this.growLines(pos[1]);
+            cl = this.growLines(pos[1]);
             if (pos[1] == this.size[1]) pos[1]--;
-            cl = lines[pos[1] + this._offscreenLines];
             /* Select first cell */
-            cc = null;
-            advanceCell();
+            cc = this.growCells(cl, 0);
           } else if (! cl) {
             /* First loop run -- select correct line and cell */
-            cl = lines[pos[1] + this._offscreenLines];
-            advanceCell();
-            for (var i = 0; i < pos[0]; i++) advanceCell();
+            cl = this.growLines(pos[1]);
+            cc = this.growCells(cl, pos[0], true);
           }
           /* Embed character into cell */
           cc.textContent = ch;
           /* Advance character */
           pos[0]++;
-          if (pos[0] != this.size[0]) advanceCell();
+          if (pos[0] != this.size[0]) cc = this._nextCell(cc, true);
         }
       }
       /* Update cursor position if told to */
