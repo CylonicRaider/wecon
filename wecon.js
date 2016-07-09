@@ -317,10 +317,12 @@ this.Terminal = function() {
       while (lines.length < fullLength)
         content.appendChild(makeNode("div"));
       /* Update _offscreenLines */
-      if (y >= this.size[1])
-        this._offscreenLines += y - this.size[1];
+      if (y >= this.size[1]) {
+        this._offscreenLines += y - this.size[1] + 1;
+        y = this.size[1] - 1;
+      }
       /* Remove lines to maintain scroll buffer size */
-      var capLength = this.scrollback;
+      var capLength = this.scrollback || 0;
       if (capLength < this.size[1]) capLength = this.size[1];
       while (lines.length > capLength) {
         /* Garbage-collect cells */
