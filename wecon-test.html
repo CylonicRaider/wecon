@@ -27,7 +27,9 @@ h1 {
 window.addEventListener('load', function() {
   window.term = new Terminal({width: 80, height: 25});
   term.mount(document.getElementById('terminal'));
-  term.writeTextRaw("Hello World!", [75, 24]);
+  for (var i = 0; i < 200; i++) {
+    term.writeTextRaw(((i) ? " " : "") + "Hello World!");
+  }
 });
     </script>
   </head>
