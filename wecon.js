@@ -296,7 +296,7 @@ this.Terminal = function() {
         this.size = [curWidth, curHeight];
       }
       /* Update cursor */
-      this.placeCursor();
+      this._placeCursor();
     },
 
     /* Add line nodes as necessary to be able to display the given
@@ -329,7 +329,7 @@ this.Terminal = function() {
 
     /* Move the cursor to the given coordinates or to the stored cursor
      * position */
-    placeCursor: function(x, y) {
+    _placeCursor: function(x, y) {
       /* Resolve coordinates */
       if (x == null) x = this.curPos[0];
       if (y == null) y = this.curPos[1];
@@ -363,6 +363,24 @@ this.Terminal = function() {
       /* Write back cursor coordinates */
       this.curPos[0] = x;
       this.curPos[1] = y;
+    },
+
+    /* Place the cursor at the given coordinates
+     * The position is clamped to fit into the window. */
+    placeCursor: function(x, y) {
+      if (x == null) x = this.curPos[0];
+      if (y == null) y = this.curPos[1];
+      if (x >= this.size[0]) x = this.size[0] - 1;
+      if (y >= this.size[1]) y = this.size[1] - 1;
+      if (x < 0) x = 0;
+      if (y < 0) y = 0;
+      this._placeCursor(x, y);
+    },
+
+    /* Move the cursor relatively to its current position */
+    moveCursor: function(x, y) {
+      this.placeCursor(this.curPos[0] + (x || 0),
+                       this.curPos[1] + (y || 0));
     },
 
     /* Draw some text onto the output area
@@ -427,7 +445,7 @@ this.Terminal = function() {
         }
       }
       /* Update cursor position if told to */
-      if (! noMove) this.placeCursor(pos[0], pos[1]);
+      if (! noMove) this._placeCursor(pos[0], pos[1]);
     }
   };
 
