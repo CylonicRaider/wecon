@@ -214,10 +214,17 @@ this.Terminal = function() {
      * from there.
      */
     mount: function(node) {
-      if (this.node) this.unmount();
+      if (this.node) {
+        node.innerHTML = "";
+        while (this.node.lastElementChild) {
+          node.appendChild(this.node.lastElementChild);
+        }
+        this.unmount();
+      } else {
+        node.innerHTML = "<pre></pre>";
+      }
       this.node = node;
       node.classList.add("wecon");
-      node.innerHTML = "<pre></pre>";
       if (this.scrollback != null)
         node.firstElementChild.classList.add("scroll");
       window.addEventListener("resize", this._resize);
