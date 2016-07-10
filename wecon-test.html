@@ -30,6 +30,7 @@ window.addEventListener('load', function() {
   for (var i = 0; i < 200; i++) {
     term.writeTextRaw(((i) ? " " : "") + "Hello World!");
   }
+  term.eraseScreen(true, false, true, [40, 10]);
 });
     </script>
   </head>

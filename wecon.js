@@ -310,12 +310,45 @@ this.Terminal = function() {
       this._placeCursor();
     },
 
+    /* Return an array with the indicated portion of the given line's
+     * cells */
+    _cellRange: function(line, from, to) {
+      var ch = line.children, cl = line.children.length;
+      if (from == null && to == null) {
+        return Array.prototype.slice.call(ch);
+      } else if (from == null) {
+        return Array.prototype.slice.call(ch, 0, Math.min(to, cl));
+      } else if (to == null) {
+        return Array.prototype.slice.call(ch, Math.max(0, from), cl);
+      } else {
+        return Array.prototype.slice.call(ch, Math.max(0, from),
+                                          Math.min(to, cl));
+      }
+    },
+
+    /* Garbage-collect all the cells from line
+     * If remove is true, they are also unlinked from it, otherwise,
+     * it is assumed that the line will be disposed of itself. */
+    _clearLine: function(line, remove) {
+      var range = this._cellRange(line);
+      if (remove) {
+        range.forEach(function(el) {
+          this._cells.add(el);
+          line.removeChild(el);
+        }.bind(this));
+      } else {
+        range.forEach(this._cells.add.bind(this._cells));
+      }
+    },
+
     /* Add line nodes as necessary to be able to display the given
      * coordinate, or the y part of the cursor position
      * Returns the line in question.
      */
     growLines: function(y) {
       if (y == null) y = this.curPos[1];
+      /* Not mounted -> no action */
+      if (! this.node) return null;
       /* Obtain contents and lines */
       var content = this.node.getElementsByTagName("pre")[0];
       var lines = content.children;
@@ -333,14 +366,21 @@ this.Terminal = function() {
       if (capLength < this.size[1]) capLength = this.size[1];
       while (lines.length > capLength) {
         /* Garbage-collect cells */
-        Array.prototype.forEach.call(lines[0].querySelectorAll(".cell"),
-                                     this._cells.add.bind(this._cells));
+        this._clearLine(lines[0], false);
         /* Actually dispose of line */
         content.removeChild(lines[0]);
         /* Decrement offscreen line count */
         this._offscreenLines--;
       }
       return lines[this._offscreenLines + y];
+    },
+
+    /* Return the line as indicated by the given coordinate, or undefined if
+     * not mounted or the line is absent */
+    getLine: function(y) {
+      if (! this.node) return null;
+      var content = this.node.getElementsByTagName("pre")[0];
+      return content.children[this._offscreenLines + y];
     },
 
     /* Return the cell immediately following the given one
@@ -362,6 +402,7 @@ this.Terminal = function() {
      * Returns the (possibly) newly-made cell at the given position.
      */
     growCells: function(line, x, pad) {
+      if (! this.node) return null;
       var children = line.children, cell;
       for (var i = 0; i <= x; i++) {
         cell = children[i];
@@ -420,6 +461,17 @@ this.Terminal = function() {
                        this.curPos[1] + (y || 0));
     },
 
+    /* Resolve the given position WRT to the current cursor position
+     * If pos or any part of it is missing, the cursor position (or the
+     * corresponding part of it) is reported.
+     */
+    _resolvePosition: function(pos) {
+      if (! pos) pos = [this.curPos[0], this.curPos[1]];
+      if (pos[0] == null) pos[0] = this.curPos[0];
+      if (pos[1] == null) pos[1] = this.curPos[1];
+      return pos;
+    },
+
     /* Draw some text onto the output area
      * Writing starts at pos (falling back to the current cursor coordinates
      * when pos is null, or falling back at the x and y coordinate of the
@@ -429,9 +481,7 @@ this.Terminal = function() {
      */
     writeTextRaw: function(text, pos, noMove) {
       /* Resolve initial position */
-      if (! pos) pos = [this.curPos[0], this.curPos[1]];
-      if (pos[0] == null) pos[0] = this.curPos[0];
-      if (pos[1] == null) pos[1] = this.curPos[1];
+      pos = this._resolvePosition(pos);
       /* Save decremented width; do not perform costy DOM manipulation if
        * no text given or not mounted */
       var tlm1 = text.length - 1;
@@ -470,6 +520,65 @@ this.Terminal = function() {
       }
       /* Update cursor position if told to */
       if (! noMove) this._placeCursor(pos[0], pos[1]);
+    },
+
+    /* Erase part of the line as indicated by pos or the cursor position */
+    eraseLine: function(before, after, pos) {
+      /* Resolve position */
+      pos = this._resolvePosition(pos);
+      /* Determine line and bounds */
+      var line = this.getLine(pos[1]);
+      if (! line) return;
+      var from = pos[0], to = pos[0] + 1;
+      if (before) from = null;
+      if (after) to = null;
+      /* Actually erase */
+      var range = this._cellRange(line, from, to);
+      if (after) {
+        range.forEach(function(el) {
+          this._cells.add(el);
+          line.removeChild(el);
+        });
+      } else {
+        range.forEach(function(el) {
+          el.textContent = " ";
+        });
+      }
+    },
+
+    /* Erase part of the up to or after the cursor, and possibly discard
+     * scrollback */
+    eraseScreen: function(before, after, scrollback, pos) {
+      if (! this.node) return;
+      /* Resolve position */
+      var pos = this._resolvePosition(pos);
+      /* Obtain reference to line array */
+      var content = this.node.getElementsByTagName("pre")[0];
+      var lines = content.children;
+      /* Clear line */
+      this.eraseLine(before, after, pos);
+      /* Clear lines above or below */
+      if (before) {
+        for (var y = 0; y < pos[1]; y++) {
+          this._clearLine(lines[this._offscreenLines + y], true);
+        }
+      }
+      if (after) {
+        var fl = this._offscreenLines + pos[1] + 1;
+        while (lines.length > fl) {
+          this._clearLine(content.lastElementChild, false);
+          content.removeChild(content.lastElementChild);
+        }
+      }
+      /* Clear scrollback */
+      if (scrollback) {
+        var fl = lines.length - this._offscreenLines;
+        while (lines.length > fl) {
+          this._clearLine(lines[0], false);
+          content.removeChild(lines[0]);
+        }
+        this._offscreenLines = 0;
+      }
     }
   };
 
