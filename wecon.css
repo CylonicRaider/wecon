@@ -51,20 +51,19 @@
 /* Character cells */
 .wecon pre .cell {
   display: inline-block;
+  position: relative;
   width: 1ch;
+  height: 1em;
   text-align: center;
   overflow: hidden;
 }
 
 /* Cursor */
-.wecon pre .cursor {
-  display: inline-block;
-  width: 0;
-  height: 1em;
-  vertical-align: top;
-}
 .wecon pre .cursor::after {
   content: "\2007"; /* U+2007 FIGURE SPACE */
+  position: absolute;
+  left: 0;
+  width: 1ch;
   text-decoration: underline;
   animation: wecon-blink 0.5s linear infinite;
 }

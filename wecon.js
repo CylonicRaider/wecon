@@ -343,21 +343,16 @@ this.Terminal = function() {
       return lines[this._offscreenLines + y];
     },
 
-    /* Return the cell immediately following the given one, excluding the
-     * cursor (if any)
+    /* Return the cell immediately following the given one
      * If make is true, a new cell is created on demand.
      */
     _nextCell: function(cell, make) {
-      var line = cell.parentNode;
-      do {
-        if (cell) cell = cell.nextElementSibling;
-        if (! cell) {
-          if (! make) return null;
-          cell = this._cells.get();
-          line.appendChild(cell);
-        }
-      } while (! cell.classList.contains("cell"));
-      return cell;
+      var ret = cell.nextElementChild;
+      if (! ret && make) {
+        ret = this._cells.get();
+        cell.parentNode.appendChild(ret);
+      }
+      return ret;
     },
 
     /* Ensure there are enough cells in the given line to reach the
@@ -367,16 +362,14 @@ this.Terminal = function() {
      * Returns the (possibly) newly-made cell at the given position.
      */
     growCells: function(line, x, pad) {
-      var children = line.children, cell = children[0];
+      var children = line.children, cell;
       for (var i = 0; i <= x; i++) {
+        cell = children[i];
         if (! cell) {
           cell = this._cells.get();
           line.appendChild(cell);
-        } else if (! cell.classList.contains("cell")) {
-          cell = this._nextCell(cell, true);
         }
         if (pad && ! cell.textContent) cell.textContent = " ";
-        if (i < x) cell = this._nextCell(cell);
       }
       return cell;
     },
@@ -389,20 +382,20 @@ this.Terminal = function() {
       if (y == null) y = this.curPos[1];
       /* Only access DOM when mounted */
       if (this.node) {
+        var overflow = (x >= this.width);
+        if (overflow) x = this.width - 1;
         /* Extract current cell */
         var line = this.growLines(y);
-        var cell = this.growCells(line, x - 1, false);
-        /* Extract or create cursor */
+        var cell = this.growCells(line, x, false);
+        /* Remove old cursor */
         var cursor = line.parentNode.getElementsByClassName("cursor")[0];
-        if (! cursor) cursor = makeNode("span", "cursor");
-        /* Insert cursor */
-        if (x >= this.width) {
-          cursor.classList.add("overflow");
-        } else {
+        if (cursor) {
+          cursor.classList.remove("cursor");
           cursor.classList.remove("overflow");
         }
-        line.insertBefore(cursor, (cell) ? cell.nextElementSibling :
-            line.firstElementChild);
+        /* Install new cursor */
+        cell.classList.add("cursor");
+        if (overflow) cell.classList.add("overflow");
       }
       /* Write back cursor coordinates */
       this.curPos[0] = x;
