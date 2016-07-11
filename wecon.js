@@ -334,7 +334,7 @@ this.Terminal = function() {
       var lines = content.children;
       var rl = lines.length;
       if (this._offscreenLines)
-        rl = Math.max(rl, this._offscreenLines + this.size[1]);
+        rl = this._offscreenLines + this.size[1];
       /* Remove overflowing lines */
       while (lines.length > rl) {
         /* Garbage-collect cells */
@@ -683,6 +683,40 @@ this.Terminal = function() {
       }
       /* Update bottom padding */
       this._updatePadding();
+    },
+
+    /* Perform a carriage return and/or a line feed, possibly reversed
+     * Since there is little meaning to an arbitrary-position variant of
+     * this, the cursor position is used and updated unconditionally.
+     */
+    newLine: function(cr, lf, reverse) {
+      if (! this.node) return;
+      /* Carriage return. Rather simple. */
+      if (cr) this.curPos[0] = 0;
+      /* Line feed. More complex. */
+      if (lf) {
+        if (reverse) {
+          /* Reverse line feed. Waaah! */
+          if (this.curPos[1] > 0) {
+            this.curPos[1]--;
+          } else {
+            /* Insert fresh line */
+            if (this.node) {
+              var content = this.node.getElementsByTagName("pre")[0];
+              var line = makeNode("div");
+              content.insertBefore(line,
+                content.children[this._offscreenLines]);
+            }
+          }
+        } else {
+          /* "Forward" line feed. */
+          this.curPos[1]++;
+          /* Scrolling will happen implicitly when _updatePadding() is
+           * called (if necessary). */
+        }
+      }
+      /* Can only operate on DOM when mounted */
+      if (this.node) this._updatePadding();
     }
   };
 
