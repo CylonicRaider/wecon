@@ -257,29 +257,32 @@ this.Terminal = function() {
             this.node.offsetHeight == this._oldSize[1])
           return;
       }
+      /* Prepare scroll-to-bottom */
+      var scroll = this._prepareScroll();
       /* Extract content area node */
       var content = this.node.getElementsByTagName("pre")[0];
       var measureStyle = getComputedStyle(content, "::before");
       /* Reset width and height for calculation */
       content.style.width = "";
       content.style.height = "";
+      /* Scrollbar size */
+      var sbSize = content.offsetWidth - content.clientWidth;
       /* Calculate width and height */
       var curWidth, curHeight;
       if (this.width) {
         /* Fixed width */
         content.classList.add('fixed-width');
-        content.style.width = this.width + "ch";
+        content.style.width = (this.width * ch + sbSize) + "px";
         content.style.paddingRight = "";
         this.node.style.minWidth = content.offsetWidth + "px";
         curWidth = this.width;
       } else {
         /* Dynamic width */
-        var sbSize = content.offsetWidth - content.clientWidth;
         var ch = parseFloat(measureStyle.width);
         curWidth = (this.node.offsetWidth - sbSize) / ch | 0;
         var ew = (curWidth * ch + sbSize);
         content.classList.remove('fixed-width');
-        content.style.width = ew + "px";
+        content.style.width = this.node.offsetWidth + "px";
         content.style.paddingRight = (this.node.offsetWidth - ew) + "px";
         this.node.style.minWidth = "";
       }
@@ -308,6 +311,21 @@ this.Terminal = function() {
       }
       /* Update cursor */
       this._placeCursor();
+      /* Scroll to bottom */
+      scroll();
+    },
+
+    /* Return a closure that scrolls the terminal window as appropriate
+     * after modifications */
+    _prepareScroll: function() {
+      var content = this.node.getElementsByTagName("pre")[0];
+      var atBottom = (content.scrollTop + content.clientHeight >=
+                      content.scrollHeight);
+      return function() {
+        if (atBottom) {
+          content.scrollTop = content.scrollHeight - content.clientHeight;
+        }
+      };
     },
 
     /* Return an array with the indicated portion of the given line's
@@ -486,6 +504,8 @@ this.Terminal = function() {
        * no text given or not mounted */
       var tlm1 = text.length - 1;
       if (tlm1 >= 0 && this.node) {
+        /* Might have to scroll to the bottom */
+        var scroll = this._prepareScroll();
         /* Get line array */
         var content = this.node.getElementsByTagName("pre")[0];
         var lines  = content.children;
@@ -517,6 +537,8 @@ this.Terminal = function() {
           pos[0]++;
           if (pos[0] != this.size[0]) cc = this._nextCell(cc, true);
         }
+        /* Scroll to bottom if necessary */
+        scroll();
       }
       /* Update cursor position if told to */
       if (noMove) {

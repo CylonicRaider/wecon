@@ -25,7 +25,7 @@ h1 {
     </style>
     <script type="application/javascript">
 window.addEventListener('load', function() {
-  window.term = new Terminal({width: 80, height: 25});
+  window.term = new Terminal({width: 80, height: 25, scrollback: 1000});
   term.mount(document.getElementById('terminal'));
   for (var i = 0; i < 200; i++) {
     term.writeTextRaw(((i) ? " " : "") + "Hello World!");
