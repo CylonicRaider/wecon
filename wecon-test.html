@@ -27,15 +27,14 @@ h1 {
 window.addEventListener('load', function() {
   window.term = new Terminal({width: 80, height: 25, scrollback: 1000});
   term.mount(document.getElementById('terminal'));
+  var s = "";
   for (var i = 0; i < 200; i++) {
-    term.writeTextRaw(((i) ? " " : "") + "Hello World!");
+    if (i) s += " ";
+    s += "Hello World!";
   }
-  term.placeCursor(40, 10);
-  term.eraseScreen(true, false);
-  term.moveCursor(0, 1);
-  term.insertTextRaw(6);
-  term.moveCursor(0, 1);
-  term.insertTextRaw("[test]");
+  term.writeTextRaw(s);
+  term.placeCursor(40, 0);
+  term.eraseScreen(false, true);
 });
     </script>
   </head>

@@ -267,6 +267,7 @@ this.Terminal = function() {
       content.style.height = "";
       /* Scrollbar size */
       var sbSize = content.offsetWidth - content.clientWidth;
+      var ch = parseFloat(measureStyle.width);
       /* Calculate width and height */
       var curWidth, curHeight;
       if (this.width) {
@@ -278,7 +279,6 @@ this.Terminal = function() {
         curWidth = this.width;
       } else {
         /* Dynamic width */
-        var ch = parseFloat(measureStyle.width);
         curWidth = (this.node.offsetWidth - sbSize) / ch | 0;
         var ew = (curWidth * ch + sbSize);
         content.classList.remove('fixed-width');
@@ -309,10 +309,45 @@ this.Terminal = function() {
       } else {
         this.size = [curWidth, curHeight];
       }
-      /* Update cursor */
-      this._placeCursor();
+      /* Update bottom padding */
+      this._updatePadding();
       /* Scroll to bottom */
       scroll();
+    },
+
+    /* Update for changed line amount */
+    _updatePadding: function() {
+      /* Not mounted -> no action */
+      if (! this.node) return;
+      /* May have to shift cursor */
+      if (this.curPos[0] > this.size[0])
+        this.curPos[0] = this.size[0];
+      var shift = this.curPos[1] - this.size[1] + 1;
+      if (shift < 0) shift = 0;
+      /* Shift up */
+      if (shift) {
+        this.curPos[1] -= shift;
+        this._offscreenLines += shift;
+      }
+      /* Determine necessary line amount */
+      var content = this.node.getElementsByTagName("pre")[0];
+      var lines = content.children;
+      var rl = lines.length;
+      if (this._offscreenLines)
+        rl = Math.max(rl, this._offscreenLines + this.size[1]);
+      /* Remove overflowing lines */
+      while (lines.length > rl) {
+        /* Garbage-collect cells */
+        this._clearLine(content.lastElementChild, false);
+        /* Actually dispose of line */
+        content.removeChild(content.lastElementChild);
+      }
+      /* Add new lines as padding */
+      while (lines.length < rl) {
+        content.appendChild(makeNode("div"));
+      }
+      /* Update cursor node */
+      this._placeCursor();
     },
 
     /* Return a closure that scrolls the terminal window as appropriate
@@ -646,6 +681,8 @@ this.Terminal = function() {
         }
         this._offscreenLines = 0;
       }
+      /* Update bottom padding */
+      this._updatePadding();
     }
   };
 
