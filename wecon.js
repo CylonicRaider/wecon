@@ -648,9 +648,9 @@ this.Terminal = function() {
       this._placeCursor();
     },
 
-    /* Erase part of the up to or after the cursor, and possibly discard
-     * scrollback */
-    eraseScreen: function(before, after, scrollback, pos) {
+    /* Erase part of the display up to or after the cursor, and possibly
+     * discard scrollback */
+    eraseDisplay: function(before, after, scrollback, pos) {
       if (! this.node) return;
       /* Resolve position */
       var pos = this._resolvePosition(pos);
