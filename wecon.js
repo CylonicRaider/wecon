@@ -624,6 +624,58 @@ this.Terminal = function() {
       this._placeCursor();
     },
 
+    /* Remove some amount of characters one a line and insert some blank
+     * ones
+     * After removing remove characters at the current position (without
+     * moving the cursor), inserts insert blank characters at the same
+     * position (still without moving the cursor).
+     * pos (and individual coordinates of it) default to the current
+     * cursor position. If noDiscard is true, excess characters are not
+     * dropped from the line after insertion.
+     * NOTE that pos is the first argument to maintain similarity to
+     *      Array.prototype.splice.
+     */
+    spliceCharacters: function(pos, remove, insert, noDiscard) {
+      /* Obtain line */
+      pos = this._resolvePosition(pos);
+      var line = this.getLine(pos[1]);
+      if (! line) return;
+      /* Remove cells */
+      this._cellRange(line, pos[0], pos[0] + remove).forEach(
+        function(el) {
+          this._cells.add(el);
+          line.removeChild(el);
+        }.bind(this));
+      /* Add cells */
+      this.insertTextRaw(insert, pos, noDiscard);
+    },
+
+    /* Remove and insert some amount of lines after the given position */
+    spliceLines: function(y, remove, insert) {
+      this.checkMounted();
+      /* Resolve coordinate */
+      if (y == null) y = this.curPos[1];
+      var content = this.node.getElementsByTagName("pre")[0];
+      var lines = content.children;
+      /* Remove lines */
+      for (var i = 0; i < remove; i++) {
+        var line = lines[this._offscreenLines + y];
+        if (! line) break;
+        this._clearLine(line, false);
+        content.removeChild(line);
+      }
+      /* Insert lines */
+      var ln = this.getLine(y);
+      if (ln) {
+        if (insert > this.size[1]) insert = this.size[1];
+        for (var i = 0; i < insert; i++) {
+          content.insertBefore(makeNode("div"), ln);
+        }
+      }
+      /* Retain scrolling position */
+      this._updatePadding();
+    },
+
     /* Erase part of the line as indicated by pos or the cursor position */
     eraseLine: function(before, after, pos) {
       /* Resolve position */
@@ -703,12 +755,7 @@ this.Terminal = function() {
             this.curPos[1]--;
           } else {
             /* Insert fresh line */
-            if (this.node) {
-              var content = this.node.getElementsByTagName("pre")[0];
-              var line = makeNode("div");
-              content.insertBefore(line,
-                content.children[this._offscreenLines]);
-            }
+            this.spliceLines(null, 0, 1);
           }
         } else {
           /* "Forward" line feed. */
