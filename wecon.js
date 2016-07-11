@@ -210,8 +210,8 @@ this.Terminal = function() {
     /* Double underline is NYI */
 
     /* Install the terminal into the given node
-     * If it is already mounted into another node, it is (entirely) removed
-     * from there.
+     * If it is already mounted into another node, it is entirely relocated
+     * to the new position.
      */
     mount: function(node) {
       if (this.node) {
@@ -247,10 +247,14 @@ this.Terminal = function() {
       this.node = null;
     },
 
+    /* Throw an error if the terminal is not mounted */
+    checkMounted: function() {
+      if (! this.node) throw new Error("Terminal not mounted");
+    },
+
     /* Update the sizes of the content area and the container */
     resize: function() {
-      /* Ignore for "virtual" terminals */
-      if (! this.node) return;
+      this.checkMounted();
       /* Ignore if size not changed */
       if (this._oldSize) {
         if (this.node.offsetWidth == this._oldSize[0] &&
@@ -317,8 +321,7 @@ this.Terminal = function() {
 
     /* Update for changed line amount */
     _updatePadding: function() {
-      /* Not mounted -> no action */
-      if (! this.node) return;
+      this.checkMounted();
       /* May have to shift cursor */
       if (this.curPos[0] > this.size[0])
         this.curPos[0] = this.size[0];
@@ -353,6 +356,7 @@ this.Terminal = function() {
     /* Return a closure that scrolls the terminal window as appropriate
      * after modifications */
     _prepareScroll: function() {
+      this.checkMounted();
       var content = this.node.getElementsByTagName("pre")[0];
       var atBottom = (content.scrollTop + content.clientHeight >=
                       content.scrollHeight);
@@ -399,9 +403,9 @@ this.Terminal = function() {
      * Returns the line in question.
      */
     growLines: function(y) {
+      this.checkMounted();
+      /* Insert default value */
       if (y == null) y = this.curPos[1];
-      /* Not mounted -> no action */
-      if (! this.node) return null;
       /* Obtain contents and lines */
       var content = this.node.getElementsByTagName("pre")[0];
       var lines = content.children;
@@ -428,10 +432,10 @@ this.Terminal = function() {
       return lines[this._offscreenLines + y];
     },
 
-    /* Return the line as indicated by the given coordinate, or undefined if
-     * not mounted or the line is absent */
+    /* Return the line as indicated by the given coordinate, or undefined the
+     * line is absent */
     getLine: function(y) {
-      if (! this.node) return null;
+      this.checkMounted();
       var content = this.node.getElementsByTagName("pre")[0];
       return content.children[this._offscreenLines + y];
     },
@@ -455,7 +459,7 @@ this.Terminal = function() {
      * Returns the (possibly) newly-made cell at the given position.
      */
     growCells: function(line, x, pad) {
-      if (! this.node) return null;
+      this.checkMounted();
       var children = line.children, cell;
       for (var i = 0; i <= x; i++) {
         cell = children[i];
@@ -471,26 +475,25 @@ this.Terminal = function() {
     /* Move the cursor to the given coordinates or to the stored cursor
      * position */
     _placeCursor: function(x, y) {
+      this.checkMounted();
       /* Resolve coordinates */
       if (x == null) x = this.curPos[0];
       if (y == null) y = this.curPos[1];
-      /* Only access DOM when mounted */
-      if (this.node) {
-        var overflow = (x >= this.width);
-        if (overflow) x = this.width - 1;
-        /* Extract current cell */
-        var line = this.growLines(y);
-        var cell = this.growCells(line, x, false);
-        /* Remove old cursor */
-        var cursor = line.parentNode.getElementsByClassName("cursor")[0];
-        if (cursor) {
-          cursor.classList.remove("cursor");
-          cursor.classList.remove("overflow");
-        }
-        /* Install new cursor */
-        cell.classList.add("cursor");
-        if (overflow) cell.classList.add("overflow");
+      /* Check whether overflowing */
+      var overflow = (x >= this.width);
+      if (overflow) x = this.width - 1;
+      /* Extract current cell */
+      var line = this.growLines(y);
+      var cell = this.growCells(line, x, false);
+      /* Remove old cursor */
+      var cursor = line.parentNode.getElementsByClassName("cursor")[0];
+      if (cursor) {
+        cursor.classList.remove("cursor");
+        cursor.classList.remove("overflow");
       }
+      /* Install new cursor */
+      cell.classList.add("cursor");
+      if (overflow) cell.classList.add("overflow");
       /* Write back cursor coordinates */
       this.curPos[0] = x;
       this.curPos[1] = y;
@@ -533,12 +536,13 @@ this.Terminal = function() {
      * Control characters (including CR and LF) are rendered as normal text.
      */
     writeTextRaw: function(text, pos, noMove) {
+      this.checkMounted();
       /* Resolve initial position */
       pos = this._resolvePosition(pos);
       /* Save decremented width; do not perform costy DOM manipulation if
-       * no text given or not mounted */
+       * no text given */
       var tlm1 = text.length - 1;
-      if (tlm1 >= 0 && this.node) {
+      if (tlm1 >= 0) {
         /* Might have to scroll to the bottom */
         var scroll = this._prepareScroll();
         /* Get line array */
@@ -592,31 +596,29 @@ this.Terminal = function() {
      * inserted.
      */
     insertTextRaw: function(text, pos, noDiscard) {
+      this.checkMounted();
       /* Resolve position */
       pos = this._resolvePosition(pos);
-      /* Cannot edit while not mounted */
-      if (this.node) {
-        /* Acquire various variables */
-        var line = this.growLines(pos[1]);
-        var cell = this.growCells(line, pos[0], true);
-        var isNumber = (typeof text == "number");
-        var tlm1 = (isNumber) ? text - 1 : text.length - 1;
-        if (noDiscard) n = Math.min(n, this.size[0]);
-        for (var i = 0; i <= tlm1; i++) {
-          var ch = (isNumber) ? " " : text[i];
-          /* Decode surrogate pairs */
-          if (/[\uD800-\uDBFF]/.test(ch) && i < tlm1 &&
-              /[\uDC00-\uDFFF]/.test(text[i + 1]))
-            ch += text[++i];
-          /* Insert character */
-          var nc = this._cells.get();
-          nc.textContent = ch;
-          line.insertBefore(nc, cell);
-        }
-        /* Truncate line if necessary */
-        if (! noDiscard) {
-          this.eraseLine(false, true, [this.size[0], pos[1]]);
-        }
+      /* Acquire various variables */
+      var line = this.growLines(pos[1]);
+      var cell = this.growCells(line, pos[0], true);
+      var isNumber = (typeof text == "number");
+      var tlm1 = (isNumber) ? text - 1 : text.length - 1;
+      if (noDiscard) n = Math.min(n, this.size[0]);
+      for (var i = 0; i <= tlm1; i++) {
+        var ch = (isNumber) ? " " : text[i];
+        /* Decode surrogate pairs */
+        if (/[\uD800-\uDBFF]/.test(ch) && i < tlm1 &&
+            /[\uDC00-\uDFFF]/.test(text[i + 1]))
+          ch += text[++i];
+        /* Insert character */
+        var nc = this._cells.get();
+        nc.textContent = ch;
+        line.insertBefore(nc, cell);
+      }
+      /* Truncate line if necessary */
+      if (! noDiscard) {
+        this.eraseLine(false, true, [this.size[0], pos[1]]);
       }
       /* Ensure the cursor has not moved away */
       this._placeCursor();
@@ -651,7 +653,7 @@ this.Terminal = function() {
     /* Erase part of the display up to or after the cursor, and possibly
      * discard scrollback */
     eraseDisplay: function(before, after, scrollback, pos) {
-      if (! this.node) return;
+      this.checkMounted();
       /* Resolve position */
       var pos = this._resolvePosition(pos);
       /* Obtain reference to line array */
@@ -690,7 +692,7 @@ this.Terminal = function() {
      * this, the cursor position is used and updated unconditionally.
      */
     newLine: function(cr, lf, reverse) {
-      if (! this.node) return;
+      this.checkMounted();
       /* Carriage return. Rather simple. */
       if (cr) this.curPos[0] = 0;
       /* Line feed. More complex. */
@@ -715,8 +717,8 @@ this.Terminal = function() {
            * called (if necessary). */
         }
       }
-      /* Can only operate on DOM when mounted */
-      if (this.node) this._updatePadding();
+      /* Make book-keeping DOM changes */
+      this._updatePadding();
     }
   };
 
