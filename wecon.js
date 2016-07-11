@@ -538,11 +538,10 @@ this.Terminal = function() {
       /* Resolve position */
       pos = this._resolvePosition(pos);
       /* Cannot edit while not mounted */
-      if (! this.node) {
+      if (this.node) {
         /* Acquire various variables */
         var line = this.growLines(pos[1]);
         var cell = this.growCells(line, pos[0], true);
-        var next = cell.nextElementChild;
         var isNumber = (typeof text == "number");
         var tlm1 = (isNumber) ? text - 1 : text.length - 1;
         if (noDiscard) n = Math.min(n, this.size[0]);
@@ -555,15 +554,11 @@ this.Terminal = function() {
           /* Insert character */
           var nc = this._cells.get();
           nc.textContent = ch;
-          line.insertBefore(nc, next);
+          line.insertBefore(nc, cell);
         }
         /* Truncate line if necessary */
         if (! noDiscard) {
-          var ch = line.children;
-          while (ch.length > this.size[0]) {
-            this._cells.add(line.lastElementChild);
-            line.removeChild(line.lastElementChild);
-          }
+          this.eraseLine(false, true, [this.size[0], pos[1]]);
         }
       }
       /* Ensure the cursor has not moved away */
@@ -586,7 +581,7 @@ this.Terminal = function() {
         range.forEach(function(el) {
           this._cells.add(el);
           line.removeChild(el);
-        });
+        }.bind(this));
       } else {
         range.forEach(function(el) {
           el.textContent = " ";
