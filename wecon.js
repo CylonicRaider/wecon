@@ -465,7 +465,7 @@ this.Terminal = function() {
       if (! pos) pos = [this.curPos[0], this.curPos[1]];
       if (pos[0] == null) pos[0] = this.curPos[0];
       if (pos[1] == null) pos[1] = this.curPos[1];
-      if (pos[0] >= this.size[0]) pos[0] = this.size[0] - 1;
+      if (pos[0] > this.size[0]) pos[0] = this.size[0];
       if (pos[1] >= this.size[1]) pos[1] = this.size[1] - 1;
       if (pos[0] < 0) pos[0] = 0;
       if (pos[1] < 0) pos[1] = 0;
