@@ -522,6 +522,48 @@ this.Terminal = function() {
       if (! noMove) this._placeCursor(pos[0], pos[1]);
     },
 
+    /* Insert text at the given position (or the cursor position), shifting
+     * the remainder of the line to the right
+     * Since this is inherently a line-based operation, no wrapping is
+     * performed. Unless noDiscard is true, the characters pushed out of the
+     * visible area.
+     * If text is a number, the amount of spaces as indicated by it is
+     * inserted.
+     */
+    insertTextRaw: function(text, pos, noDiscard) {
+      /* Resolve position */
+      pos = this._resolvePosition(pos);
+      /* Cannot edit while not mounted */
+      if (! this.node) {
+        /* Acquire various variables */
+        var line = this.growLines(pos[1]);
+        var cell = this.growCells(line, pos[0], true);
+        var next = cell.nextElementChild;
+        var isNumber = (typeof text == "number");
+        var tlm1 = (isNumber) ? text - 1 : text.length - 1;
+        if (noDiscard) n = Math.min(n, this.size[0]);
+        for (var i = 0; i <= tlm1; i++) {
+          var ch = (isNumber) ? " " : text[i];
+          /* Decode surrogate pairs */
+          if (/[\uD800-\uDBFF]/.test(ch) && i < tlm1 &&
+              /[\uDC00-\uDFFF]/.test(text[i + 1]))
+            ch += text[++i];
+          /* Insert character */
+          var nc = this._cells.get();
+          nc.textContent = ch;
+          line.insertBefore(nc, next);
+        }
+        /* Truncate line if necessary */
+        if (! noDiscard) {
+          var ch = line.children;
+          while (ch.length > this.size[0]) {
+            this._cells.add(line.lastElementChild);
+            line.removeChild(line.lastElementChild);
+          }
+        }
+      }
+    },
+
     /* Erase part of the line as indicated by pos or the cursor position */
     eraseLine: function(before, after, pos) {
       /* Resolve position */
