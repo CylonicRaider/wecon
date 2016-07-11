@@ -446,13 +446,8 @@ this.Terminal = function() {
     /* Place the cursor at the given coordinates
      * The position is clamped to fit into the window. */
     placeCursor: function(x, y) {
-      if (x == null) x = this.curPos[0];
-      if (y == null) y = this.curPos[1];
-      if (x >= this.size[0]) x = this.size[0] - 1;
-      if (y >= this.size[1]) y = this.size[1] - 1;
-      if (x < 0) x = 0;
-      if (y < 0) y = 0;
-      this._placeCursor(x, y);
+      var p = this._resolvePosition([x, y]);
+      this._placeCursor(p[0], p[1]);
     },
 
     /* Move the cursor relatively to its current position */
@@ -464,11 +459,16 @@ this.Terminal = function() {
     /* Resolve the given position WRT to the current cursor position
      * If pos or any part of it is missing, the cursor position (or the
      * corresponding part of it) is reported.
+     * The position is ensured to be within the terminal's bounds.
      */
     _resolvePosition: function(pos) {
       if (! pos) pos = [this.curPos[0], this.curPos[1]];
       if (pos[0] == null) pos[0] = this.curPos[0];
       if (pos[1] == null) pos[1] = this.curPos[1];
+      if (pos[0] >= this.size[0]) pos[0] = this.size[0] - 1;
+      if (pos[1] >= this.size[1]) pos[1] = this.size[1] - 1;
+      if (pos[0] < 0) pos[0] = 0;
+      if (pos[1] < 0) pos[1] = 0;
       return pos;
     },
 
@@ -519,7 +519,11 @@ this.Terminal = function() {
         }
       }
       /* Update cursor position if told to */
-      if (! noMove) this._placeCursor(pos[0], pos[1]);
+      if (noMove) {
+        this._placeCursor();
+      } else {
+        this._placeCursor(pos[0], pos[1]);
+      }
     },
 
     /* Insert text at the given position (or the cursor position), shifting
@@ -562,6 +566,8 @@ this.Terminal = function() {
           }
         }
       }
+      /* Ensure the cursor has not moved away */
+      this._placeCursor();
     },
 
     /* Erase part of the line as indicated by pos or the cursor position */
@@ -586,6 +592,8 @@ this.Terminal = function() {
           el.textContent = " ";
         });
       }
+      /* Ensure we did not remove the cursor */
+      this._placeCursor();
     },
 
     /* Erase part of the up to or after the cursor, and possibly discard
