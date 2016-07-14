@@ -78,3 +78,35 @@
   50% { visibility: hidden; }
   to { visibility: hidden; }
 }
+
+/* Display attributes */
+.wecon .attr-bold {
+  font-weight: bold;
+}
+.wecon .attr-dim {
+  filter: brightness(0.5);
+}
+.wecon .attr-italic {
+  font-style: italic;
+}
+.wecon .attr-underline {
+  text-decoration: underline;
+}
+.wecon .attr-blink {
+  animation: wecon-blink 1s linear infinite;
+}
+.wecon .attr-fastblink {
+  animation: wecon-blink 0.25s linear infinite;
+}
+.wecon .attr-reverse {
+  filter: invert(1);
+}
+.wecon .attr-hidden {
+  visibility: hidden;
+}
+.wecon .attr-strike {
+  text-decoration: line-through;
+}
+.wecon .attr-dblunderline {
+  text-decoration: double underline;
+}

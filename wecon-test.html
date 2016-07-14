@@ -36,6 +36,9 @@ window.addEventListener('load', function() {
   term.placeCursor(40, 0);
   term.eraseDisplay(false, true);
   term.newLine(true, true, true);
+  var pos = [null, null];
+  pos.attrs = Terminal.ATTR.BOLD;
+  term.writeTextRaw("I am bold!", pos);
 });
     </script>
   </head>

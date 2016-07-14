@@ -170,15 +170,21 @@ this.Terminal = function() {
    *             immediately discarded; when set to positive infinity,
    *             arbitrarily many lines are stored.
    * Additional attributes:
-   * node  : The DOM node the terminal is residing in.
-   * size  : The actual size of the terminal as a [width, height] array (in
-   *         character cells), or null if never shown yet.
-   * curPos: The current cursor position as an (x, y) array. Both coordinates
-   *         must be not less than zero; the y coordinate must be less than
-   *         the height and the x coordinate must be not greater (!) than the
-   *         width. The initial value is [0, 0].
-   *         NOTE (explicitly) that the x coordinate may be equal to the
-   *              width.
+   * node    : The DOM node the terminal is residing in.
+   * size    : The actual size of the terminal as a [width, height] array (in
+   *           character cells), or null if never shown yet.
+   * curPos  : The current cursor position as an (x, y) array. Both
+   *           coordinates must be not less than zero; the y coordinate must
+   *           be less than the height and the x coordinate must be not
+   *           greater (!) than the width. The initial value is [0, 0].
+   *           NOTE (explicitly) that the x coordinate may be equal to the
+   *                width.
+   * curFg   : The current foreground color index, or null if the default is
+   *           to be used.
+   * curBg   : The current background color index, or null if the default is
+   *           to be used.
+   * curAttrs: The current display attributes as a bitmask of the constants
+   *           Terminal.ATTR.*.
    */
   function Terminal(options) {
     if (! options) options = {};
@@ -190,25 +196,45 @@ this.Terminal = function() {
     this.node = null;
     this.size = null;
     this.curPos = [0, 0];
+    this.curFg = null;
+    this.curBg = null;
+    this.curAttrs = 0;
     this._offscreenLines = 0;
     this._decoder = new UTF8Dec();
     this._cells = new NodeCache("span", null, 1000);
     this._resize = this.resize.bind(this);
   }
 
-  Terminal.prototype = {
-    /* Text attribute bits */
-    ATTR_BOLD     :   1, /* Bold */
-    ATTR_DIM      :   2, /* Half-bright */
-    ATTR_ITALIC   :   4, /* Italic */
-    ATTR_UNDERLINE:   8, /* Underlined */
-    ATTR_BLINK    :  16, /* Blinking */
-    ATTR_FASTBLINK:  32, /* Fast blinking */
-    ATTR_REVERSE  :  64, /* Reverse video */
-    ATTR_HIDDEN   : 128, /* Text hidden */
-    ATTR_STRIKE   : 256, /* Strikethrough */
-    /* Double underline is NYI */
+  /* Text attribute bits */
+  Terminal.ATTR = {
+    BOLD        :   1, /* Bold */
+    DIM         :   2, /* Half-bright */
+    ITALIC      :   4, /* Italic */
+    UNDERLINE   :   8, /* Underlined */
+    BLINK       :  16, /* Blinking */
+    FASTBLINK   :  32, /* Fast blinking */
+    REVERSE     :  64, /* Reverse video */
+    HIDDEN      : 128, /* Text hidden */
+    STRIKE      : 256, /* Strikethrough */
+    DBLUNDERLINE: 512, /* Double underline */
+    _MAX        : 512  /* Greatest attribute defined */
+  };
 
+  /* Text attribute codenames */
+  Terminal.ATTRNAME = {
+      1: "bold",
+      2: "dim",
+      4: "italic",
+      8: "underline",
+     16: "blink",
+     32: "fastblink",
+     64: "reverse",
+    128: "hidden",
+    256: "strike",
+    512: "dblunderline"
+  };
+
+  Terminal.prototype = {
     /* Install the terminal into the given node
      * If it is already mounted into another node, it is entirely relocated
      * to the new position.
@@ -516,6 +542,8 @@ this.Terminal = function() {
      * If pos or any part of it is missing, the cursor position (or the
      * corresponding part of it) is reported.
      * The position is ensured to be within the terminal's bounds.
+     * The .bg, .fg, and .attrs are replaced by their counterparts
+     * from this if not present (=== undefined).
      */
     _resolvePosition: function(pos) {
       if (! pos) pos = [this.curPos[0], this.curPos[1]];
@@ -525,7 +553,27 @@ this.Terminal = function() {
       if (pos[1] >= this.size[1]) pos[1] = this.size[1] - 1;
       if (pos[0] < 0) pos[0] = 0;
       if (pos[1] < 0) pos[1] = 0;
+      if (pos.fg === undefined) pos.fg = this.curFg;
+      if (pos.bg === undefined) pos.bg = this.curBg;
+      if (pos.attrs === undefined) pos.attrs = this.curAttrs;
       return pos;
+    },
+
+    /* Return a closure which assigns the attributes as configured by base
+     * to any cell it's called on */
+    _prepareAttrs: function(base) {
+      var classes = "";
+      /* Scan attributes */
+      for (var i = 1; i <= Terminal.ATTR._MAX; i <<= 1) {
+        if (base.attrs & i) classes += " attr-" + Terminal.ATTRNAME[i];
+      }
+      /* Foreground and background */
+      if (base.fg != null) classes += " fg-" + base.fg;
+      if (base.bg != null) classes += " bg-" + base.bg;
+      /* Result */
+      return function(node) {
+        node.classList += classes;
+      };
     },
 
     /* Draw some text onto the output area
@@ -539,6 +587,7 @@ this.Terminal = function() {
       this.checkMounted();
       /* Resolve initial position */
       pos = this._resolvePosition(pos);
+      var attrs = this._prepareAttrs(pos);
       /* Save decremented width; do not perform costy DOM manipulation if
        * no text given */
       var tlm1 = text.length - 1;
@@ -571,6 +620,7 @@ this.Terminal = function() {
             cc = this.growCells(cl, pos[0], true);
           }
           /* Embed character into cell */
+          attrs(cc);
           cc.textContent = ch;
           /* Advance character */
           pos[0]++;
@@ -599,6 +649,7 @@ this.Terminal = function() {
       this.checkMounted();
       /* Resolve position */
       pos = this._resolvePosition(pos);
+      var attrs = this._prepareAttrs(pos);
       /* Acquire various variables */
       var line = this.growLines(pos[1]);
       var cell = this.growCells(line, pos[0], true);
@@ -613,6 +664,7 @@ this.Terminal = function() {
           ch += text[++i];
         /* Insert character */
         var nc = this._cells.get();
+        attrs(nc);
         nc.textContent = ch;
         line.insertBefore(nc, cell);
       }
