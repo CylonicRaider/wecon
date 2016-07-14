@@ -203,7 +203,7 @@ this.Terminal = function() {
     ATTR_ITALIC   :   4, /* Italic */
     ATTR_UNDERLINE:   8, /* Underlined */
     ATTR_BLINK    :  16, /* Blinking */
-    /* 6 is not assigned */
+    ATTR_FASTBLINK:  32, /* Fast blinking */
     ATTR_REVERSE  :  64, /* Reverse video */
     ATTR_HIDDEN   : 128, /* Text hidden */
     ATTR_STRIKE   : 256, /* Strikethrough */
