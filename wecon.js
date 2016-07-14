@@ -151,7 +151,7 @@ this.Terminal = function() {
     /* Add a node to the cache or dispose of it */
     add: function(node) {
       if (this._nodes.length >= this.maxLength) return;
-      node.className = this.className;
+      node.className = this.className || "";
       node.innerHTML = "";
       this._nodes.push(node);
     }
@@ -192,7 +192,7 @@ this.Terminal = function() {
     this.curPos = [0, 0];
     this._offscreenLines = 0;
     this._decoder = new UTF8Dec();
-    this._cells = new NodeCache("span", "cell", 1000);
+    this._cells = new NodeCache("span", null, 1000);
     this._resize = this.resize.bind(this);
   }
 

@@ -49,7 +49,7 @@
 }
 
 /* Character cells */
-.wecon pre .cell {
+.wecon pre span {
   display: inline-block;
   position: relative;
   width: 1ch;
