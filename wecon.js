@@ -264,7 +264,7 @@ this.Terminal = function() {
       /* Prepare scroll-to-bottom */
       var scroll = this._prepareScroll();
       /* Extract content area node */
-      var content = this.node.getElementsByTagName("pre")[0];
+      var content = this.node.querySelector("pre");
       var measureStyle = getComputedStyle(content, "::before");
       /* Reset width and height for calculation */
       content.style.width = "";
@@ -333,7 +333,7 @@ this.Terminal = function() {
         this._offscreenLines += shift;
       }
       /* Determine necessary line amount */
-      var content = this.node.getElementsByTagName("pre")[0];
+      var content = this.node.querySelector("pre");
       var lines = content.children;
       var rl = lines.length;
       if (this._offscreenLines)
@@ -357,7 +357,7 @@ this.Terminal = function() {
      * after modifications */
     _prepareScroll: function() {
       this.checkMounted();
-      var content = this.node.getElementsByTagName("pre")[0];
+      var content = this.node.querySelector("pre");
       var atBottom = (content.scrollTop + content.clientHeight >=
                       content.scrollHeight);
       return function() {
@@ -407,7 +407,7 @@ this.Terminal = function() {
       /* Insert default value */
       if (y == null) y = this.curPos[1];
       /* Obtain contents and lines */
-      var content = this.node.getElementsByTagName("pre")[0];
+      var content = this.node.querySelector("pre");
       var lines = content.children;
       /* Amend lines */
       var fullLength = this._offscreenLines + y + 1;
@@ -436,7 +436,7 @@ this.Terminal = function() {
      * line is absent */
     getLine: function(y) {
       this.checkMounted();
-      var content = this.node.getElementsByTagName("pre")[0];
+      var content = this.node.querySelector("pre");
       return content.children[this._offscreenLines + y];
     },
 
@@ -546,7 +546,7 @@ this.Terminal = function() {
         /* Might have to scroll to the bottom */
         var scroll = this._prepareScroll();
         /* Get line array */
-        var content = this.node.getElementsByTagName("pre")[0];
+        var content = this.node.querySelector("pre");
         var lines  = content.children;
         /* Current line, current cell */
         var cl = null, cc = null;
@@ -655,7 +655,7 @@ this.Terminal = function() {
       this.checkMounted();
       /* Resolve coordinate */
       if (y == null) y = this.curPos[1];
-      var content = this.node.getElementsByTagName("pre")[0];
+      var content = this.node.querySelector("pre");
       var lines = content.children;
       /* Remove lines */
       for (var i = 0; i < remove; i++) {
@@ -709,7 +709,7 @@ this.Terminal = function() {
       /* Resolve position */
       var pos = this._resolvePosition(pos);
       /* Obtain reference to line array */
-      var content = this.node.getElementsByTagName("pre")[0];
+      var content = this.node.querySelector("pre");
       var lines = content.children;
       /* Clear line */
       this.eraseLine(before, after, pos);
