@@ -80,33 +80,33 @@
 }
 
 /* Display attributes */
-.wecon .attr-bold {
+.wecon [data-attrs~=bold] {
   font-weight: bold;
 }
-.wecon .attr-dim {
+.wecon [data-attrs~=dim] {
   filter: brightness(0.5);
 }
-.wecon .attr-italic {
+.wecon [data-attrs~=italic] {
   font-style: italic;
 }
-.wecon .attr-underline {
+.wecon [data-attrs~=underline] {
   text-decoration: underline;
 }
-.wecon .attr-blink {
+.wecon [data-attrs~=blink] {
   animation: wecon-blink 1s linear infinite;
 }
-.wecon .attr-fastblink {
+.wecon [data-attrs~=fastblink] {
   animation: wecon-blink 0.25s linear infinite;
 }
-.wecon .attr-reverse {
+.wecon [data-attrs~=reverse] {
   filter: invert(1);
 }
-.wecon .attr-hidden {
+.wecon [data-attrs~=hidden] {
   visibility: hidden;
 }
-.wecon .attr-strike {
+.wecon [data-attrs~=strike] {
   text-decoration: line-through;
 }
-.wecon .attr-dblunderline {
+.wecon [data-attrs~=dblunderline] {
   text-decoration: double underline;
 }

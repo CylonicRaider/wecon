@@ -560,20 +560,34 @@ this.Terminal = function() {
     },
 
     /* Return a closure which assigns the attributes as configured by base
-     * to any cell it's called on */
+     * to any cell it's called on
+     * If base is a DOM node, its data-attrs attribute is applied.
+     */
     _prepareAttrs: function(base) {
-      var classes = "";
-      /* Scan attributes */
-      for (var i = 1; i <= Terminal.ATTR._MAX; i <<= 1) {
-        if (base.attrs & i) classes += " attr-" + Terminal.ATTRNAME[i];
+      var attrs = "";
+      if (typeof base == "object" && base.nodeType !== undefined) {
+        attrs = base.getAttribute("data-attrs");
+      } else {
+        /* Scan attributes */
+        for (var i = 1; i <= Terminal.ATTR._MAX; i <<= 1) {
+          if (base.attrs & i) attrs += " " + Terminal.ATTRNAME[i];
+        }
+        /* Foreground and background */
+        if (base.fg != null) attrs += " fg-" + base.fg;
+        if (base.bg != null) attrs += " bg-" + base.fg;
+        /* Strip leading space */
+        attrs = attrs.replace(/^ /, "");
       }
-      /* Foreground and background */
-      if (base.fg != null) classes += " fg-" + base.fg;
-      if (base.bg != null) classes += " bg-" + base.bg;
       /* Result */
-      return function(node) {
-        node.classList += classes;
-      };
+      if (attrs) {
+        return function(node) {
+          node.setAttribute("data-attrs", attrs);
+        };
+      } else {
+        return function(node) {
+          node.removeAttribute("data-attrs");
+        };
+      }
     },
 
     /* Draw some text onto the output area
