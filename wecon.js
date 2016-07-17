@@ -538,7 +538,7 @@ this.Terminal = function() {
                        this.curPos[1] + (y || 0));
     },
 
-    /* Resolve the given position WRT to the current cursor position
+    /* Resolve the given position WRT the current cursor position
      * If pos or any part of it is missing, the cursor position (or the
      * corresponding part of it) is reported.
      * The position is ensured to be within the terminal's bounds.
@@ -574,7 +574,7 @@ this.Terminal = function() {
         }
         /* Foreground and background */
         if (base.fg != null) attrs += " fg-" + base.fg;
-        if (base.bg != null) attrs += " bg-" + base.fg;
+        if (base.bg != null) attrs += " bg-" + base.bg;
         /* Strip leading space */
         attrs = attrs.replace(/^ /, "");
       }
