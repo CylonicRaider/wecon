@@ -248,6 +248,7 @@ this.Terminal = function() {
         this.unmount();
       } else {
         node.innerHTML = "<pre></pre>";
+        this._prepareAttrs()(node.firstElementChild);
       }
       this.node = node;
       node.classList.add("wecon");
@@ -435,10 +436,14 @@ this.Terminal = function() {
       /* Obtain contents and lines */
       var content = this.node.querySelector("pre");
       var lines = content.children;
+      var attrs = this._prepareAttrs(content);
       /* Amend lines */
       var fullLength = this._offscreenLines + y + 1;
-      while (lines.length < fullLength)
-        content.appendChild(makeNode("div"));
+      while (lines.length < fullLength) {
+        var node = makeNode("div");
+        attrs(node);
+        content.appendChild(node);
+      }
       /* Update _offscreenLines */
       if (y >= this.size[1]) {
         this._offscreenLines += y - this.size[1] + 1;
@@ -486,12 +491,14 @@ this.Terminal = function() {
      */
     growCells: function(line, x, pad) {
       this.checkMounted();
+      var attrs = this._prepareAttrs(line);
       var children = line.children, cell;
       for (var i = 0; i <= x; i++) {
         cell = children[i];
         if (! cell) {
           cell = this._cells.get();
           line.appendChild(cell);
+          attrs(cell);
         }
         if (pad && ! cell.textContent) cell.textContent = " ";
       }
@@ -542,7 +549,7 @@ this.Terminal = function() {
      * If pos or any part of it is missing, the cursor position (or the
      * corresponding part of it) is reported.
      * The position is ensured to be within the terminal's bounds.
-     * The .bg, .fg, and .attrs are replaced by their counterparts
+     * The .fg, .bg, and .attrs are replaced by their counterparts
      * from this if not present (=== undefined).
      */
     _resolvePosition: function(pos) {
@@ -559,12 +566,36 @@ this.Terminal = function() {
       return pos;
     },
 
+    /* Resolve the given Y coordinate WRT the current cursor position
+     * The .fg, .bg, .attrs attributes are filled in if necessary.
+     */
+    _resolveY: function(y) {
+      /* Turn into an object */
+      if (Array.isArray(y)) y = y[1];
+      if (y == null) {
+        y = new Number(this.curPos[1]);
+      } else if (typeof y == "number") {
+        y = new Number(y);
+      } else if (Array.isArray(y)) {
+        y = new Number(y[1]);
+      }
+      /* Insert attributes */
+      if (y.fg === undefined) y.fg = this.curFg;
+      if (y.bg === undefined) y.bg = this.curBg;
+      if (y.attrs === undefined) y.attrs = this.curAttrs;
+      /* Done */
+      return y;
+    },
+
     /* Return a closure which assigns the attributes as configured by base
      * to any cell it's called on
+     * If base is null, the terminal's current attributes are used.
      * If base is a DOM node, its data-attrs attribute is applied.
      */
     _prepareAttrs: function(base) {
       var attrs = "";
+      if (base == null)
+        base = {attrs: this.curAttrs, fg: this.curFg, bg: this.curBg};
       if (typeof base == "object" && base.nodeType !== undefined) {
         attrs = base.getAttribute("data-attrs");
       } else {
@@ -573,8 +604,16 @@ this.Terminal = function() {
           if (base.attrs & i) attrs += " " + Terminal.ATTRNAME[i];
         }
         /* Foreground and background */
-        if (base.fg != null) attrs += " fg-" + base.fg;
-        if (base.bg != null) attrs += " bg-" + base.bg;
+        if (base.fg != null) {
+          attrs += " fg-" + base.fg;
+        } else {
+          attrs += " fg-default";
+        }
+        if (base.bg != null) {
+          attrs += " bg-" + base.bg;
+        } else {
+          attrs += " bg-default";
+        }
         /* Strip leading space */
         attrs = attrs.replace(/^ /, "");
       }
@@ -746,6 +785,7 @@ this.Terminal = function() {
     eraseLine: function(before, after, pos) {
       /* Resolve position */
       pos = this._resolvePosition(pos);
+      var attrs = this._prepareAttrs(pos);
       /* Determine line and bounds */
       var line = this.getLine(pos[1]);
       if (! line) return;
@@ -759,9 +799,12 @@ this.Terminal = function() {
           this._cells.add(el);
           line.removeChild(el);
         }.bind(this));
+        /* Assign attributes */
+        attrs(line);
       } else {
         range.forEach(function(el) {
           el.textContent = " ";
+          attrs(el);
         });
       }
       /* Ensure we did not remove the cursor */
@@ -774,6 +817,7 @@ this.Terminal = function() {
       this.checkMounted();
       /* Resolve position */
       var pos = this._resolvePosition(pos);
+      var attrs = this._prepareAttrs(pos);
       /* Obtain reference to line array */
       var content = this.node.querySelector("pre");
       var lines = content.children;
@@ -782,15 +826,19 @@ this.Terminal = function() {
       /* Clear lines above or below */
       if (before) {
         for (var y = 0; y < pos[1]; y++) {
-          this._clearLine(lines[this._offscreenLines + y], true);
+          var ln = lines[this._offscreenLines + y];
+          this._clearLine(ln, true);
+          attrs(ln);
         }
       }
       if (after) {
         var fl = this._offscreenLines + pos[1] + 1;
         while (lines.length > fl) {
-          this._clearLine(content.lastElementChild, false);
-          content.removeChild(content.lastElementChild);
+          var ln = content.lastElementChild;
+          this._clearLine(ln, false);
+          content.removeChild(ln);
         }
+        attrs(content);
       }
       /* Clear scrollback */
       if (scrollback) {
@@ -832,6 +880,19 @@ this.Terminal = function() {
       }
       /* Make book-keeping DOM changes */
       this._updatePadding();
+    },
+
+    /* Set the current display attributes to the given values
+     * fg and bg are color indices or null, attrs is a bitmask of the
+     * Terminal.ATTR.* constants.
+     * If fg or bg are truly (===) undefined, the corresponding values
+     * are unchanged, attrs can be weakly equal to undefined (i.e. null)
+     * not to affect the current value.
+     */
+    setAttributes: function(fg, bg, attrs) {
+      if (fg !== undefined) this.curFg = fg;
+      if (bg !== undefined) this.curBg = bg;
+      if (attrs != undefined) this.curAttrs = attrs;
     }
   };
 

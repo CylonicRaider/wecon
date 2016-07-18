@@ -27,18 +27,12 @@ h1 {
 window.addEventListener('load', function() {
   window.term = new Terminal({width: 80, height: 25, scrollback: 1000});
   term.mount(document.getElementById('terminal'));
-  var s = "";
-  for (var i = 0; i < 200; i++) {
-    if (i) s += " ";
-    s += "Hello World!";
-  }
-  term.writeTextRaw(s);
-  term.placeCursor(40, 0);
+  term.setAttributes(15, 4);
+  term.placeCursor(40, 10);
+  term.eraseDisplay(true, false);
+  term.setAttributes(15, 1, Terminal.ATTR.ITALIC);
   term.eraseDisplay(false, true);
-  term.newLine(true, true, true);
-  var pos = [null, null];
-  pos.attrs = Terminal.ATTR.BOLD;
-  term.writeTextRaw("I am bold!", pos);
+  term.writeTextRaw("Hello World!");
 });
     </script>
   </head>

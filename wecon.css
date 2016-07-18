@@ -110,3 +110,38 @@
 .wecon [data-attrs~=dblunderline] {
   text-decoration: double underline;
 }
+
+.wecon [data-attrs~=fg-default] { color:      #AAAAAA; }
+.wecon [data-attrs~=bg-default] { background: #000000; }
+.wecon [data-attrs~=fg-0]  { color:      #000000; }
+.wecon [data-attrs~=bg-0]  { background: #000000; }
+.wecon [data-attrs~=fg-1]  { color:      #AA0000; }
+.wecon [data-attrs~=bg-1]  { background: #AA0000; }
+.wecon [data-attrs~=fg-2]  { color:      #00AA00; }
+.wecon [data-attrs~=bg-2]  { background: #00AA00; }
+.wecon [data-attrs~=fg-3]  { color:      #AA5500; }
+.wecon [data-attrs~=bg-3]  { background: #AAAA00; }
+.wecon [data-attrs~=fg-4]  { color:      #0000AA; }
+.wecon [data-attrs~=bg-4]  { background: #0000AA; }
+.wecon [data-attrs~=fg-5]  { color:      #AA00AA; }
+.wecon [data-attrs~=bg-5]  { background: #AA00AA; }
+.wecon [data-attrs~=fg-6]  { color:      #00AAAA; }
+.wecon [data-attrs~=bg-6]  { background: #00AAAA; }
+.wecon [data-attrs~=fg-7]  { color:      #AAAAAA; }
+.wecon [data-attrs~=bg-7]  { background: #AAAAAA; }
+.wecon [data-attrs~=fg-8]  { color:      #555555; }
+.wecon [data-attrs~=bg-8]  { background: #555555; }
+.wecon [data-attrs~=fg-9]  { color:      #FF5555; }
+.wecon [data-attrs~=bg-9]  { background: #FF5555; }
+.wecon [data-attrs~=fg-10] { color:      #55FF55; }
+.wecon [data-attrs~=bg-10] { background: #55FF55; }
+.wecon [data-attrs~=fg-11] { color:      #FFFF55; }
+.wecon [data-attrs~=bg-11] { background: #FFFF55; }
+.wecon [data-attrs~=fg-12] { color:      #5555FF; }
+.wecon [data-attrs~=bg-12] { background: #5555FF; }
+.wecon [data-attrs~=fg-13] { color:      #FF55FF; }
+.wecon [data-attrs~=bg-13] { background: #FF55FF; }
+.wecon [data-attrs~=fg-14] { color:      #55FFFF; }
+.wecon [data-attrs~=bg-14] { background: #55FFFF; }
+.wecon [data-attrs~=fg-15] { color:      #FFFFFF; }
+.wecon [data-attrs~=bg-15] { background: #FFFFFF; }
