@@ -70,6 +70,7 @@
   left: 0;
   width: 1ch;
   text-decoration: underline;
+  pointer-events: none;
   animation: wecon-blink 0.5s linear infinite;
 }
 
