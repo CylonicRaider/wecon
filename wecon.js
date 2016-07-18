@@ -325,15 +325,18 @@ this.Terminal = function() {
         this.node.innerHTML = "";
         this.selectScreen(0);
       } else {
-        if (this.node) {
-          var cn = this._contentNode();
-          if (cn) cn.innerHTML = "";
-        }
         this.curPos = [0, 0];
         this.curFg = null;
         this.curBg = null;
         this.curAttrs = 0;
         this._offscreenLines = 0;
+        if (this.node) {
+          var cn = this._contentNode();
+          if (cn) {
+            cn.innerHTML = "";
+            this._prepareAttrs()(cn);
+          }
+        }
       }
     },
 
@@ -423,15 +426,16 @@ this.Terminal = function() {
         node.removeAttribute("data-cur-bg");
         node.removeAttribute("data-cur-attrs");
         node.removeAttribute("data-offscreen-lines");
+        node.classList.add("visible");
       } else {
         /* Allocate new node */
         node = makeNode("pre");
         node.setAttribute("data-screen-id", id);
         this.node.appendChild(node);
+        node.classList.add("visible");
         /* Reset */
         this.reset(false);
       }
-      node.classList.add("visible");
       /* Update current ID */
       this._currentScreen = id;
       /* Update node size */
