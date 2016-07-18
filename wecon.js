@@ -170,14 +170,10 @@ this.Terminal = function() {
     this.scrollback = options.scrollback;
     this.node = null;
     this.size = null;
-    this.curPos = [0, 0];
-    this.curFg = null;
-    this.curBg = null;
-    this.curAttrs = 0;
-    this._offscreenLines = 0;
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
     this._resize = this.resize.bind(this);
+    this.reset(false);
   }
 
   /* Text attribute bits */
@@ -323,6 +319,24 @@ this.Terminal = function() {
       scroll();
     },
 
+    /* Reset the entire terminal or the current screen */
+    reset: function(full) {
+      if (full && this.node) {
+        this.node.innerHTML = "";
+        this.selectScreen(0);
+      } else {
+        if (this.node) {
+          var cn = this._contentNode();
+          if (cn) cn.innerHTML = "";
+        }
+        this.curPos = [0, 0];
+        this.curFg = null;
+        this.curBg = null;
+        this.curAttrs = 0;
+        this._offscreenLines = 0;
+      }
+    },
+
     /* Update for changed line amount */
     _updatePadding: function() {
       this.checkMounted();
@@ -415,10 +429,7 @@ this.Terminal = function() {
         node.setAttribute("data-screen-id", id);
         this.node.appendChild(node);
         /* Reset */
-        this.curPos = [0, 0];
-        this.curFg = null;
-        this.curBg = null;
-        this.curAttrs = 0;
+        this.reset(false);
       }
       node.classList.add("visible");
       /* Update current ID */
