@@ -303,6 +303,7 @@ this.Terminal = function() {
       /* Scrollbar size */
       var sbSize = content.offsetWidth - content.clientWidth;
       var ch = parseFloat(measureStyle.width);
+      var em = parseFloat(measureStyle.height);
       /* Calculate width and height */
       var curWidth, curHeight;
       if (this.width) {
@@ -324,15 +325,15 @@ this.Terminal = function() {
       if (this.height) {
         /* Fixed height */
         content.classList.add('fixed-height');
-        content.style.height = this.height + "em";
-        this.node.style.minHeight = content.offsetHeight + "px";
+        var eh = this.height * em;
+        content.style.height = eh + "px";
+        this.node.style.minHeight = eh + "px";
         curHeight = this.height;
       } else {
         /* Dynamic height */
-        var em = parseFloat(measureStyle.height);
         curHeight = this.node.offsetHeight / em | 0;
         content.classList.remove('fixed-height');
-        content.style.height = curHeight + "em";
+        content.style.height = (curHeight * em) + "px";
         this.node.style.minHeight = "";
       }
       /* Store pixel size for later checking */

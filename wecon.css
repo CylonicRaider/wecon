@@ -11,7 +11,7 @@
 .wecon {
   display: flex;
   overflow: auto;
-  line-height: 1;
+  line-height: 1.1;
   background: #101010;
   color: white;
 }
@@ -43,12 +43,12 @@
   content: "";
   display: none;
   width: 1ch;
-  height: 1em;
+  height: 1.1em;
 }
 
 /* Lines */
 .wecon pre div {
-  height: 1em;
+  height: 1.1em;
   overflow: hidden;
 }
 
@@ -57,7 +57,7 @@
   display: inline-block;
   position: relative;
   width: 1ch;
-  height: 1em;
+  height: 100%;
   text-align: center;
   vertical-align: top;
   overflow: hidden;
