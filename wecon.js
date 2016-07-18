@@ -130,33 +130,6 @@ this.Terminal = function() {
     }
   };
 
-  /* DOM node accumulator
-   * New nodes are created with the given tag and class. The node cache will
-   * not grow larger than maxLength nodes.
-   */
-  function NodeCache(tagName, className, maxLength) {
-    this.tagName = tagName;
-    this.className = className;
-    this.maxLength = maxLength;
-    this._nodes = [];
-  }
-
-  NodeCache.prototype = {
-    /* Obtain a node from the cache or create a new one */
-    get: function() {
-      if (this._nodes.length) return this._nodes.pop();
-      return makeNode(this.tagName, this.className);
-    },
-
-    /* Add a node to the cache or dispose of it */
-    add: function(node) {
-      if (this._nodes.length >= this.maxLength) return;
-      node.className = this.className || "";
-      node.innerHTML = "";
-      this._nodes.push(node);
-    }
-  };
-
   /* Actual terminal emulator. options specifies parameters of the terminal:
    * width     : The terminal should have the given (fixed) width; if not set,
    *             it will adapt to the container.
@@ -204,7 +177,6 @@ this.Terminal = function() {
     this._offscreenLines = 0;
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
-    this._cells = new NodeCache("span", null, 1000);
     this._resize = this.resize.bind(this);
   }
 
@@ -489,12 +461,7 @@ this.Terminal = function() {
     _clearLine: function(line, remove) {
       var range = this._cellRange(line);
       if (remove) {
-        range.forEach(function(el) {
-          this._cells.add(el);
-          line.removeChild(el);
-        }.bind(this));
-      } else {
-        range.forEach(this._cells.add.bind(this._cells));
+        range.forEach(line.removeChild.bind(line));
       }
     },
 
@@ -550,7 +517,7 @@ this.Terminal = function() {
     _nextCell: function(cell, make) {
       var ret = cell.nextElementChild;
       if (! ret && make) {
-        ret = this._cells.get();
+        ret = makeNode("span", "cell");
         cell.parentNode.appendChild(ret);
       }
       return ret;
@@ -569,7 +536,7 @@ this.Terminal = function() {
       for (var i = 0; i <= x; i++) {
         cell = children[i];
         if (! cell) {
-          cell = this._cells.get();
+          cell = makeNode("span", "cell");
           line.appendChild(cell);
           attrs(cell);
         }
@@ -789,7 +756,7 @@ this.Terminal = function() {
             /[\uDC00-\uDFFF]/.test(text[i + 1]))
           ch += text[++i];
         /* Insert character */
-        var nc = this._cells.get();
+        var nc = makeNode("span", "cell");
         attrs(nc);
         nc.textContent = ch;
         line.insertBefore(nc, cell);
@@ -819,11 +786,8 @@ this.Terminal = function() {
       var line = this.getLine(pos[1]);
       if (! line) return;
       /* Remove cells */
-      this._cellRange(line, pos[0], pos[0] + remove).forEach(
-        function(el) {
-          this._cells.add(el);
-          line.removeChild(el);
-        }.bind(this));
+      this._cellRange(line, pos[0],
+                      pos[0] + remove).forEach(line.removeChild.bind(line));
       /* Add cells */
       this.insertTextRaw(insert, pos, noDiscard);
     },
@@ -868,10 +832,7 @@ this.Terminal = function() {
       /* Actually erase */
       var range = this._cellRange(line, from, to);
       if (after) {
-        range.forEach(function(el) {
-          this._cells.add(el);
-          line.removeChild(el);
-        }.bind(this));
+        range.forEach(line.removeChild.bind(line));
         /* Assign attributes */
         attrs(line);
       } else {
