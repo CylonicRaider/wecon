@@ -33,13 +33,17 @@ window.addEventListener('load', function() {
   term.setAttributes(15, 1, Terminal.ATTR.ITALIC);
   term.eraseDisplay(false, true);
   term.placeCursor(68, null);
+  var save = term.saveAttributes();
   term.writeTextRaw("Hello World!");
+  save();
   term.selectScreen(1);
   term.writeTextRaw("Loading, please wait...");
   setTimeout(function() {
     term.selectScreen(0);
-    term.beep();
   }, 1000);
+  setTimeout(function() {
+    term.beep();
+  }, 2000);
 });
     </script>
   </head>

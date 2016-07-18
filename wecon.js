@@ -945,6 +945,30 @@ this.Terminal = function() {
       if (attrs != undefined) this.curAttrs = attrs;
     },
 
+    /* Return a closure that saves the current cursor position and attributes
+     * and restores them upon being called
+     * The return value has an attribute .pos which stores the cursor
+     * position, can be modified to change the restored state, and passed to
+     * the position-aware methods.
+     */
+    saveAttributes: function() {
+      /* Actual restoration function. A new closure of this one will be
+       * returned each time. */
+      function restore() {
+        self.setAttributes(this.pos.fg, this.pos.bg, this.pos.attrs);
+        self.placeCursor(this.pos[0], this.pos[1]);
+      }
+      /* Save reference to current this. */
+      var self = this;
+      /* Store data */
+      restore.pos = [this.curPos[0], this.curPos[1]];
+      restore.pos.fg = this.curFg;
+      restore.pos.bg = this.curBg;
+      restore.pos.attrs = this.curAttrs;
+      /* Return closure */
+      return restore.bind(restore);
+    },
+
     /* Invoke the terminal's bell or try to attract user attention otherwise
      * If no acoustical bell is present, the visual bell is invoked.
      */
