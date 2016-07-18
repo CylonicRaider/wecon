@@ -173,6 +173,7 @@ this.Terminal = function() {
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
     this._resize = this.resize.bind(this);
+    this._pendingBells = [];
     this.reset(false);
   }
 
@@ -942,6 +943,30 @@ this.Terminal = function() {
       if (fg !== undefined) this.curFg = fg;
       if (bg !== undefined) this.curBg = bg;
       if (attrs != undefined) this.curAttrs = attrs;
+    },
+
+    /* Invoke the terminal's bell or try to attract user attention otherwise
+     * If no acoustical bell is present, the visual bell is invoked.
+     */
+    beep: function() {
+      /* Helper */
+      var bellRunner = function(old) {
+        if (old) old.classList.remove("bell");
+        var node = this._pendingBells.shift();
+        if (! node) return;
+        node.classList.add("bell");
+        setTimeout(function() {
+          bellRunner(node);
+        }, 100);
+      }.bind(this);
+      this.checkMounted();
+      if (this.visualBell || ! this.bell) {
+        var start = (! this._pendingBells.length);
+        this._pendingBells.push(this._contentNode());
+        if (start) bellRunner();
+      } else {
+        this.bell.play();
+      }
     }
   };
 

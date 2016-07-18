@@ -38,6 +38,17 @@
   overflow-y: scroll;
 }
 
+/* Visual bell */
+.wecon pre.bell {
+  animation: wecon-bell 0.1s steps(2, start);
+}
+
+@keyframes wecon-bell {
+  from { filter: invert(1); }
+  50% { filter: none; }
+  to { filter: none; }
+}
+
 /* Measurement box */
 .wecon pre::before {
   content: "";
