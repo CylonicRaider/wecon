@@ -55,6 +55,7 @@
   width: 1ch;
   height: 1em;
   text-align: center;
+  vertical-align: top;
   overflow: hidden;
 }
 
@@ -70,7 +71,10 @@
 
 /* Cursor after last column */
 .wecon pre .cursor.overflow {
-  margin-left: -1ch;
+  overflow: visible;
+}
+.wecon pre .cursor.overflow::after {
+  left: -1ch;
 }
 
 @keyframes wecon-blink {

@@ -514,7 +514,7 @@ this.Terminal = function() {
       if (y == null) y = this.curPos[1];
       /* Check whether overflowing */
       var overflow = (x >= this.width);
-      if (overflow) x = this.width - 1;
+      if (overflow) x = this.width;
       /* Extract current cell */
       var line = this.growLines(y);
       var cell = this.growCells(line, x, false);

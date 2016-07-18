@@ -32,6 +32,7 @@ window.addEventListener('load', function() {
   term.eraseDisplay(true, false);
   term.setAttributes(15, 1, Terminal.ATTR.ITALIC);
   term.eraseDisplay(false, true);
+  term.placeCursor(68, null);
   term.writeTextRaw("Hello World!");
 });
     </script>
