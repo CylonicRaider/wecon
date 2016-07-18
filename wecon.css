@@ -18,11 +18,15 @@
 
 /* Content area */
 .wecon pre {
+  display: none;
   margin: 0 auto auto 0;
   background: black;
   overflow: hidden;
   box-sizing: border-box;
   cursor: text;
+}
+.wecon pre.visible {
+  display: block;
 }
 .wecon pre.fixed-width {
   margin-left: auto;

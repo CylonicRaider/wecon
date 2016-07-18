@@ -34,6 +34,11 @@ window.addEventListener('load', function() {
   term.eraseDisplay(false, true);
   term.placeCursor(68, null);
   term.writeTextRaw("Hello World!");
+  term.selectScreen(1);
+  term.writeTextRaw("Loading, please wait...");
+  setTimeout(function() {
+    term.selectScreen(0);
+  }, 3000);
 });
     </script>
   </head>

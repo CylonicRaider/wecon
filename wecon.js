@@ -179,6 +179,8 @@ this.Terminal = function() {
    *           greater (!) than the width. The initial value is [0, 0].
    *           NOTE (explicitly) that the x coordinate may be equal to the
    *                width.
+   *           Changing the attribute will not update the DOM; invoke the
+   *           placeCursor() method for that.
    * curFg   : The current foreground color index, or null if the default is
    *           to be used.
    * curBg   : The current background color index, or null if the default is
@@ -200,6 +202,7 @@ this.Terminal = function() {
     this.curBg = null;
     this.curAttrs = 0;
     this._offscreenLines = 0;
+    this._currentScreen = 0;
     this._decoder = new UTF8Dec();
     this._cells = new NodeCache("span", null, 1000);
     this._resize = this.resize.bind(this);
@@ -246,17 +249,12 @@ this.Terminal = function() {
           node.appendChild(this.node.lastElementChild);
         }
         this.unmount();
-      } else {
-        node.innerHTML = "<pre></pre>";
-        this._prepareAttrs()(node.firstElementChild);
       }
       this.node = node;
       node.classList.add("wecon");
-      if (this.scrollback != null)
-        node.firstElementChild.classList.add("scroll");
       window.addEventListener("resize", this._resize);
       this._oldSize = null;
-      this.resize();
+      this.selectScreen(this._currentScreen);
     },
 
     /* Remove the terminal from its current node (if any) and make it
@@ -280,10 +278,10 @@ this.Terminal = function() {
     },
 
     /* Update the sizes of the content area and the container */
-    resize: function() {
+    resize: function(force) {
       this.checkMounted();
       /* Ignore if size not changed */
-      if (this._oldSize) {
+      if (this._oldSize && ! force) {
         if (this.node.offsetWidth == this._oldSize[0] &&
             this.node.offsetHeight == this._oldSize[1])
           return;
@@ -291,8 +289,14 @@ this.Terminal = function() {
       /* Prepare scroll-to-bottom */
       var scroll = this._prepareScroll();
       /* Extract content area node */
-      var content = this.node.querySelector("pre");
+      var content = this._contentNode();
       var measureStyle = getComputedStyle(content, "::before");
+      /* Scrollback */
+      if (this.scrollback != null) {
+        content.classList.add("scroll");
+      } else {
+        content.classList.remove("scroll");
+      }
       /* Reset width and height for calculation */
       content.style.width = "";
       content.style.height = "";
@@ -360,7 +364,7 @@ this.Terminal = function() {
         this._offscreenLines += shift;
       }
       /* Determine necessary line amount */
-      var content = this.node.querySelector("pre");
+      var content = this._contentNode();
       var lines = content.children;
       var rl = lines.length;
       if (this._offscreenLines)
@@ -384,7 +388,7 @@ this.Terminal = function() {
      * after modifications */
     _prepareScroll: function() {
       this.checkMounted();
-      var content = this.node.querySelector("pre");
+      var content = this._contentNode();
       var atBottom = (content.scrollTop + content.clientHeight >=
                       content.scrollHeight);
       return function() {
@@ -392,6 +396,74 @@ this.Terminal = function() {
           content.scrollTop = content.scrollHeight - content.clientHeight;
         }
       };
+    },
+
+    /* Select an alternate screen
+     * The ID can be a number, or a string (which must only consist of
+     * alphanumerics, dashes, and underscores).
+     * If no such screen is present, it is allocated.
+     */
+    selectScreen: function(id) {
+      this.checkMounted();
+      /* Validate ID */
+      if (typeof id == "string" && ! /^[a-zA-Z0-9_-]*$/.test(id))
+        throw new Error("Bad screen ID: " + id);
+      /* Freeze data into old node */
+      var node = this._contentNode();
+      if (node) {
+        node.setAttribute("data-cursor-x", this.curPos[0]);
+        node.setAttribute("data-cursor-y", this.curPos[1]);
+        node.setAttribute("data-cur-fg", this.curFg || "");
+        node.setAttribute("data-cur-bg", this.curBg || "");
+        node.setAttribute("data-cur-attrs", this.curAttrs);
+        node.setAttribute("data-offscreen-lines", this._offscreenLines);
+        node.classList.remove("visible");
+      }
+      /* Thaw data from new node, or allocate one */
+      node = this.node.querySelector("pre[data-screen-id=\"" + id + "\"]");
+      if (node) {
+        /* Restore parameters */
+        this.curPos = [+node.getAttribute("data-cursor-x"),
+                       +node.getAttribute("data-cursor-y")];
+        this.curFg = node.getAttribute("data-cur-fg") || null;
+        this.curBg = node.getAttribute("data-cur-bg") || null;
+        this.curAttrs = +node.getAttribute("data-cur-attrs");
+        this._offscreenLines = +node.getAttribute("data-offscreen-lines");
+        /* Remove old values */
+        node.removeAttribute("data-cursor-x");
+        node.removeAttribute("data-cursor-y");
+        node.removeAttribute("data-cur-fg");
+        node.removeAttribute("data-cur-bg");
+        node.removeAttribute("data-cur-attrs");
+        node.removeAttribute("data-offscreen-lines");
+      } else {
+        /* Allocate new node */
+        node = makeNode("pre");
+        node.setAttribute("data-screen-id", id);
+        this.node.appendChild(node);
+        /* Reset */
+        this.curPos = [0, 0];
+        this.curFg = null;
+        this.curBg = null;
+        this.curAttrs = 0;
+      }
+      node.classList.add("visible");
+      /* Update current ID */
+      this._currentScreen = id;
+      /* Update node size */
+      this.resize(true);
+    },
+
+    /* Return the ID of the currently selected alternate screen
+     * The default one is zero.
+     */
+    currentScreen: function() {
+      return this._currentScreen;
+    },
+
+    /* Return the DOM node containing the current screen's content */
+    _contentNode: function() {
+      return this.node.querySelector("pre.visible");
     },
 
     /* Return an array with the indicated portion of the given line's
@@ -434,7 +506,7 @@ this.Terminal = function() {
       /* Insert default value */
       if (y == null) y = this.curPos[1];
       /* Obtain contents and lines */
-      var content = this.node.querySelector("pre");
+      var content = this._contentNode();
       var lines = content.children;
       var attrs = this._prepareAttrs(content);
       /* Amend lines */
@@ -467,7 +539,7 @@ this.Terminal = function() {
      * line is absent */
     getLine: function(y) {
       this.checkMounted();
-      var content = this.node.querySelector("pre");
+      var content = this._contentNode();
       return content.children[this._offscreenLines + y];
     },
 
@@ -648,7 +720,7 @@ this.Terminal = function() {
         /* Might have to scroll to the bottom */
         var scroll = this._prepareScroll();
         /* Get line array */
-        var content = this.node.querySelector("pre");
+        var content = this._contentNode();
         var lines  = content.children;
         /* Current line, current cell */
         var cl = null, cc = null;
@@ -760,7 +832,7 @@ this.Terminal = function() {
       this.checkMounted();
       /* Resolve coordinate */
       if (y == null) y = this.curPos[1];
-      var content = this.node.querySelector("pre");
+      var content = this._contentNode();
       var lines = content.children;
       /* Remove lines */
       for (var i = 0; i < remove; i++) {
@@ -819,7 +891,7 @@ this.Terminal = function() {
       var pos = this._resolvePosition(pos);
       var attrs = this._prepareAttrs(pos);
       /* Obtain reference to line array */
-      var content = this.node.querySelector("pre");
+      var content = this._contentNode();
       var lines = content.children;
       /* Clear line */
       this.eraseLine(before, after, pos);
