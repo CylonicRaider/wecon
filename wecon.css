@@ -111,6 +111,7 @@
   text-decoration: double underline;
 }
 
+/* Colors */
 .wecon [data-attrs~=fg-default] { color:      #AAAAAA; }
 .wecon [data-attrs~=bg-default] { background: #000000; }
 .wecon [data-attrs~=fg-0]  { color:      #000000; }
