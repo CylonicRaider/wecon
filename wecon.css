@@ -100,33 +100,33 @@
 }
 
 /* Display attributes */
-.wecon [data-attrs~=bold] {
+.wecon span[data-attrs~=bold] {
   font-weight: bold;
 }
-.wecon [data-attrs~=dim] {
+.wecon span[data-attrs~=dim] {
   filter: brightness(0.5);
 }
-.wecon [data-attrs~=italic] {
+.wecon span[data-attrs~=italic] {
   font-style: italic;
 }
-.wecon [data-attrs~=underline] {
+.wecon span[data-attrs~=underline] {
   text-decoration: underline;
 }
-.wecon [data-attrs~=blink] {
+.wecon span[data-attrs~=blink] {
   animation: wecon-blink 1s linear infinite;
 }
-.wecon [data-attrs~=fastblink] {
+.wecon span[data-attrs~=fastblink] {
   animation: wecon-blink 0.25s linear infinite;
 }
-.wecon [data-attrs~=reverse] {
-  filter: invert(1);
+.wecon span[data-attrs~=reverse] {
+  /* Implemented in JS */
 }
-.wecon [data-attrs~=hidden] {
+.wecon span[data-attrs~=hidden] {
   visibility: hidden;
 }
-.wecon [data-attrs~=strike] {
+.wecon span[data-attrs~=strike] {
   text-decoration: line-through;
 }
-.wecon [data-attrs~=dblunderline] {
+.wecon span[data-attrs~=dblunderline] {
   text-decoration: double underline;
 }

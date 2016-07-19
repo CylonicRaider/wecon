@@ -659,6 +659,9 @@ this.Terminal = function() {
         for (var i = 1; i <= Terminal.ATTR._MAX; i <<= 1) {
           if (base.attrs & i) attrs += " " + Terminal.ATTRNAME[i];
         }
+        /* Special-case reverse video */
+        if (base.attrs & Terminal.ATTR.REVERSE)
+          base = {fg: base.bg, bg: base.fg, attrs: base.attrs};
         /* Foreground and background */
         if (base.fg != null) {
           attrs += " fg-" + base.fg;

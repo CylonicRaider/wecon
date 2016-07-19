@@ -31,11 +31,13 @@ window.addEventListener('load', function() {
   term.setAttributes(15, 4);
   term.placeCursor(40, 10);
   term.eraseDisplay(true, false);
-  term.setAttributes(15, 1, Terminal.ATTR.ITALIC);
+  term.setAttributes(15, 1, Terminal.ATTR.ITALIC | Terminal.ATTR.REVERSE);
   term.eraseDisplay(false, true);
   term.placeCursor(68, null);
   var save = term.saveAttributes();
   term.writeTextRaw("Hello World!");
+  term.setAttributes(undefined, undefined, Terminal.ATTR.BOLD);
+  term.eraseLine(false, true);
   save();
   term.selectScreen(1);
   term.writeTextRaw("Loading, please wait...");
