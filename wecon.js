@@ -208,6 +208,28 @@ this.Terminal = function() {
   };
 
   Terminal.prototype = {
+    /* Reset the entire terminal or the current screen */
+    reset: function(full) {
+      if (full && this.node) {
+        this.node.innerHTML = "";
+        this.selectScreen(0);
+      } else {
+        this.curPos = [0, 0];
+        this.curFg = null;
+        this.curBg = null;
+        this.curAttrs = 0;
+        this.tabStops = {};
+        this._offscreenLines = 0;
+        if (this.node) {
+          var cn = this._contentNode();
+          if (cn) {
+            cn.innerHTML = "";
+            this._prepareAttrs()(cn);
+          }
+        }
+      }
+    },
+
     /* Install the terminal into the given node
      * If it is already mounted into another node, it is entirely relocated
      * to the new position.
@@ -321,27 +343,6 @@ this.Terminal = function() {
       scroll();
     },
 
-    /* Reset the entire terminal or the current screen */
-    reset: function(full) {
-      if (full && this.node) {
-        this.node.innerHTML = "";
-        this.selectScreen(0);
-      } else {
-        this.curPos = [0, 0];
-        this.curFg = null;
-        this.curBg = null;
-        this.curAttrs = 0;
-        this._offscreenLines = 0;
-        if (this.node) {
-          var cn = this._contentNode();
-          if (cn) {
-            cn.innerHTML = "";
-            this._prepareAttrs()(cn);
-          }
-        }
-      }
-    },
-
     /* Update for changed line amount */
     _updatePadding: function() {
       this.checkMounted();
@@ -403,12 +404,15 @@ this.Terminal = function() {
       /* Freeze data into old node */
       var node = this._contentNode();
       if (node) {
+        var f = this.tabStops.hasOwnProperty.bind(this.tabStops);
+        var ts = this.tabStops.keys().filter(f).join(" ");
         node.setAttribute("data-cursor-x", this.curPos[0]);
         node.setAttribute("data-cursor-y", this.curPos[1]);
         node.setAttribute("data-cur-fg", this.curFg || "");
         node.setAttribute("data-cur-bg", this.curBg || "");
         node.setAttribute("data-cur-attrs", this.curAttrs);
         node.setAttribute("data-offscreen-lines", this._offscreenLines);
+        node.setAttribute("data-tab-stops", ts);
         node.classList.remove("visible");
       }
       /* Thaw data from new node, or allocate one */
@@ -421,6 +425,11 @@ this.Terminal = function() {
         this.curBg = node.getAttribute("data-cur-bg") || null;
         this.curAttrs = +node.getAttribute("data-cur-attrs");
         this._offscreenLines = +node.getAttribute("data-offscreen-lines");
+        this.tabStops = {};
+        var ts = node.getAttribute("data-tab-stops") || "";
+        ts.split(" ").forEach(function(el) {
+          this.tabStops[el] = true;
+        });
         /* Remove old values */
         node.removeAttribute("data-cursor-x");
         node.removeAttribute("data-cursor-y");
@@ -428,6 +437,7 @@ this.Terminal = function() {
         node.removeAttribute("data-cur-bg");
         node.removeAttribute("data-cur-attrs");
         node.removeAttribute("data-offscreen-lines");
+        node.removeAttribute("data-tab-tops");
         node.classList.add("visible");
       } else {
         /* Allocate new node */
@@ -981,6 +991,29 @@ this.Terminal = function() {
     /* Restore the attributes as saved before by saveAttributes() */
     restoreAttributes: function() {
       if (this.savedAttributes) this.savedAttributes();
+    },
+
+    /* Add or remove tab stops as specified
+     * add is an array of tab stop indices to add, del is one of such to
+     * remove.
+     */
+    editTabStops: function(add, del) {
+      if (typeof add == "number") add = [add];
+      if (typeof del == "number") del = [del];
+      if (add) {
+        add.forEach(function(el) { this.tabStops[el] = true; });
+      }
+      if (del) {
+        del.forEach(function(el) { delete this.tabStops[el]; });
+      }
+    },
+
+    /* Move the cursor to the next horizontal tab stop */
+    tabulate: function() {
+      do {
+        this.curPos[0]++;
+      } while (this.curPos[0] < this.size[0] &&
+               ! this.tabStops[this.curPos[0]]);
     },
 
     /* Invoke the terminal's bell or try to attract user attention otherwise
