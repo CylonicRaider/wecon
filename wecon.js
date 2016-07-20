@@ -170,6 +170,7 @@ this.Terminal = function() {
     this.scrollback = options.scrollback;
     this.node = null;
     this.size = null;
+    this.savedAttributes = null;
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
     this._resize = this.resize.bind(this);
@@ -950,11 +951,13 @@ this.Terminal = function() {
 
     /* Return a closure that saves the current cursor position and attributes
      * and restores them upon being called
+     * If noPersist is true, the attribute storage is *not* recorded for
+     * later restoration by restoreAttributes().
      * The return value has an attribute .pos which stores the cursor
      * position, can be modified to change the restored state, and passed to
      * the position-aware methods.
      */
-    saveAttributes: function() {
+    saveAttributes: function(noPersist) {
       /* Actual restoration function. A new closure of this one will be
        * returned each time. */
       function restore() {
@@ -968,8 +971,16 @@ this.Terminal = function() {
       restore.pos.fg = this.curFg;
       restore.pos.bg = this.curBg;
       restore.pos.attrs = this.curAttrs;
-      /* Return closure */
-      return restore.bind(restore);
+      /* Possibly persist closure */
+      var ret = restore.bind(restore);
+      if (! noPersist) this.savedAttributes = ret;
+      /* Done */
+      return ret;
+    },
+
+    /* Restore the attributes as saved before by saveAttributes() */
+    restoreAttributes: function() {
+      if (this.savedAttributes) this.savedAttributes();
     },
 
     /* Invoke the terminal's bell or try to attract user attention otherwise
