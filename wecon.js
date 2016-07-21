@@ -746,6 +746,16 @@ this.Terminal = function() {
           if (pos[0] == this.size[0]) {
             pos[0] = 0;
             pos[1]++;
+            /* Respect scrolling regions */
+            if (this.scrollReg) {
+              if (this.scrollReg[0] != this.scrollReg[1] &&
+                  pos[1] == this.scrollReg[1]) {
+                pos[1]--;
+                this.scroll(1);
+              } else if (pos[1] == this.size[1]) {
+                pos[1]--;
+              }
+            }
             cl = this.growLines(pos[1]);
             if (pos[1] == this.size[1]) pos[1]--;
             /* Select first cell */
@@ -960,19 +970,41 @@ this.Terminal = function() {
       if (cr) this.curPos[0] = 0;
       /* Line feed. More complex. */
       if (lf) {
+        var couldScroll = (this.scrollReg &&
+                           this.scrollReg[0] != this.scrollReg[1]);
         if (reverse) {
           /* Reverse line feed. Waaah! */
-          if (this.curPos[1] > 0) {
+          if (couldScroll) {
+            if (this.curPos[0] == this.scrollReg[0]) {
+              /* Scroll down */
+              this.scroll(-1);
+            } else if (this.curPos[1] > 0) {
+              /* Only move cursor */
+              this.curPos[1]--;
+            }
+          } else if (this.curPos[1] > 0) {
+            /* Move cursor */
             this.curPos[1]--;
           } else {
             /* Insert fresh line */
             this.spliceLines(null, 0, 1);
           }
         } else {
-          /* "Forward" line feed. */
-          this.curPos[1]++;
-          /* Scrolling will happen implicitly when _updatePadding() is
-           * called (if necessary). */
+          /* "Forward" line feed */
+          if (couldScroll) {
+            if (this.curPos[1] == this.scrollReg[1] - 1) {
+              /* Scroll up */
+              this.scroll(1);
+            } else if (this.curPos[1] < this.size[1] - 1) {
+              /* Only move cursor */
+              this.curPos[1]++;
+            }
+          } else {
+            /* Move cursor */
+            this.curPos[1]++;
+            /* Scrolling will happen implicitly when _updatePadding() is
+             * called (if necessary). */
+          }
         }
       }
       /* Make book-keeping DOM changes */
