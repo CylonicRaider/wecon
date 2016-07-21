@@ -1011,10 +1011,14 @@ this.Terminal = function() {
      * remove.
      */
     editTabStops: function(add, del) {
+      this.checkMounted();
       if (typeof add == "number") add = [add];
       if (typeof del == "number") del = [del];
       if (add) {
-        add.forEach(function(el) { this.tabStops[el] = true; }.bind(this));
+        add.forEach(function(el) {
+          if (el >= this.size[0]) return;
+          this.tabStops[el] = true;
+        }.bind(this));
       }
       if (del) {
         del.forEach(function(el) { delete this.tabStops[el]; }.bind(this));
