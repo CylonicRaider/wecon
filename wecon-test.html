@@ -39,6 +39,11 @@ window.addEventListener('load', function() {
   term.setAttributes(undefined, undefined, Terminal.ATTR.BOLD);
   term.eraseLine(false, true);
   save();
+  var region = [20, 25];
+  region.fg = 0;
+  region.bg = 2;
+  term.scroll(-3, region);
+  term.scroll(1, region);
   term.selectScreen(1);
   term.writeTextRaw("Loading, please wait...");
   setTimeout(function() {

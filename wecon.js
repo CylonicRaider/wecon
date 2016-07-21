@@ -163,6 +163,11 @@ this.Terminal = function() {
    * tabStops  : An object mapping tab stop indices to true values. The
    *             values are assigned no semantics (and are frankly unlikely
    *             to be), aside from being truthy.
+   * scrollReg : The current scrolling region as a [top, bottom] array (top
+   *             inclusively, bottom exclusively), or null if there is no
+   *             explicit scrolling region. The scrollback buffer is filled
+   *             by lines scrolling off the top only if there is no scrolling
+   *             region or the top is at row 0.
    * savedAttrs: The last attribute save as recorded by saveAttributes()
    *             (unless prevented).
    */
@@ -224,6 +229,7 @@ this.Terminal = function() {
         this.curBg = null;
         this.curAttrs = 0;
         this.tabStops = {};
+        this.scrollReg = null;
         this._offscreenLines = 0;
         if (this.node) {
           var cn = this._contentNode();
@@ -668,7 +674,7 @@ this.Terminal = function() {
      */
     _prepareAttrs: function(base) {
       var attrs = "";
-      if (base == null)
+      if (base == null || typeof base != "object")
         base = {attrs: this.curAttrs, fg: this.curFg, bg: this.curBg};
       if (typeof base == "object" && base.nodeType !== undefined) {
         attrs = base.getAttribute("data-attrs");
@@ -846,11 +852,17 @@ this.Terminal = function() {
       /* Insert lines */
       var ln = this.getLine(y), added = [];
       if (ln) {
-        if (insert > this.size[1]) insert = this.size[1];
         for (var i = 0; i < insert; i++) {
           var node = makeNode("div");
           added.push(node);
-          content.insertBefore(div, ln);
+          content.insertBefore(node, ln);
+        }
+      } else {
+        var ip = this._offscreenLines + y, rl = ip + insert;
+        while (lines.length < rl) {
+          var node = makeNode("div");
+          if (lines.length >= ip) added.push(node);
+          content.appendChild(node);
         }
       }
       /* Done */
@@ -1024,7 +1036,7 @@ this.Terminal = function() {
       if (typeof del == "number") del = [del];
       if (add) {
         add.forEach(function(el) {
-          if (el >= this.size[0]) return;
+          if (this.size && el >= this.size[0]) return;
           this.tabStops[el] = true;
         }.bind(this));
       }
@@ -1040,6 +1052,68 @@ this.Terminal = function() {
       } while (this.curPos[0] < this.size[0] &&
                ! this.tabStops[this.curPos[0]]);
       if (this.curPos[0] > this.size[0]) this.curPos[0] = this.size[0];
+    },
+
+    /* Set the scrolling region
+     * If top and bottom are null, the scrolling region is removed;
+     * otherwise, a null value is replaced by the current top/bottom row
+     * index, respectively.
+     */
+    setScrollRegion: function(top, bottom) {
+      this.checkMounted();
+      if (top == null && bottom == null) {
+        this.scrollReg = null;
+      } else {
+        if (top == null) top = 0;
+        if (bottom == null) bottom = this.size[1];
+        this.scrollReg = [top, bottom];
+      }
+    },
+
+    /* Scroll the given region by n lines
+     * Positive n scroll up, negative scroll down.
+     * If the region is not given or either part of it is null, values from
+     * the terminal's current scrolling region are amended.
+     * Attributes for the new lines are derived from region.
+     * If noScrollback is true, the scrollback buffer is never modified.
+     */
+    scroll: function(n, region, noScrollback) {
+      /* Resolve region */
+      if (! region) region = [this.scrollReg[0], this.scrollReg[1]];
+      if (region[0] == null) region[0] = this.scrollReg[0];
+      if (region[1] == null) region[1] = this.scrollReg[1];
+      /* Extract display attributes */
+      var attrs = this._prepareAttrs(region);
+      /* Abort early if nothing to do */
+      if (! n) return;
+      /* Determine if the scrollback buffer will be used */
+      var scrollback = (region[0] == 0 && ! noScrollback);
+      /* Actual line manipulation */
+      var added;
+      if (n > 0) {
+        /* Cap to scrolling region length */
+        if (n > region[1] - region[0]) n = region[1] - region[0];
+        /* Remove lines above, or update _offscreenLines */
+        if (scrollback) {
+          this._offscreenLines += n;
+        } else {
+          this._spliceLines(region[0], n, 0);
+        }
+        /* Add lines below */
+        added = this._spliceLines(region[1] - n, 0, n);
+      } else {
+        /* Make n positive; cap to scrolling region length */
+        n = -n;
+        if (n > region[1] - region[0]) n = region[1] - region[0];
+        /* Remove lines below */
+        this._spliceLines(region[1] - n, n, 0);
+        /* Add lines above */
+        added = this._spliceLines(region[0], 0, n);
+      }
+      /* Apply attributes to newly inserted lines */
+      added.forEach(attrs);
+      /* Maintain consistency */
+      this._placeCursor();
     },
 
     /* Invoke the terminal's bell or try to attract user attention otherwise
