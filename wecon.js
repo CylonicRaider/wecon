@@ -380,9 +380,7 @@ this.Terminal = function() {
         rl = this._offscreenLines + this.size[1];
       /* Remove overflowing lines */
       while (lines.length > rl) {
-        /* Garbage-collect cells */
-        this._clearLine(content.lastElementChild, false);
-        /* Actually dispose of line */
+        /* Dispose of line */
         content.removeChild(content.lastElementChild);
       }
       /* Add new lines as padding */
@@ -493,14 +491,11 @@ this.Terminal = function() {
       }
     },
 
-    /* Garbage-collect all the cells from line
-     * If remove is true, they are also unlinked from it, otherwise,
-     * it is assumed that the line will be disposed of itself. */
-    _clearLine: function(line, remove) {
-      var range = this._cellRange(line);
-      if (remove) {
-        range.forEach(line.removeChild.bind(line));
-      }
+    /* Remove all cells from the given line
+     * Convenience wrapper around _cellRange() and removeChild().
+     */
+    _clearLine: function(line) {
+      this._cellRange(line).forEach(line.removeChild.bind(line));
     },
 
     /* Add line nodes as necessary to be able to display the given
@@ -531,9 +526,7 @@ this.Terminal = function() {
       var capLength = this.scrollback || 0;
       if (capLength < this.size[1]) capLength = this.size[1];
       while (lines.length > capLength) {
-        /* Garbage-collect cells */
-        this._clearLine(lines[0], false);
-        /* Actually dispose of line */
+        /* Dispose of line */
         content.removeChild(lines[0]);
         /* Decrement offscreen line count */
         this._offscreenLines--;
@@ -651,12 +644,15 @@ this.Terminal = function() {
       /* Turn into an object */
       if (Array.isArray(y)) y = y[1];
       if (y == null) {
-        y = new Number(this.curPos[1]);
-      } else if (typeof y == "number") {
-        y = new Number(y);
+        y = this.curPos[1];
       } else if (Array.isArray(y)) {
-        y = new Number(y[1]);
+        y = y[1];
       }
+      /* Constrain to bounds */
+      if (y >= this.size[1]) y = this.size[1] - 1;
+      if (y < 0) y = 0;
+      /* Create object */
+      y = new Number(y);
       /* Insert attributes */
       if (y.fg === undefined) y.fg = this.curFg;
       if (y.bg === undefined) y.bg = this.curBg;
@@ -833,28 +829,42 @@ this.Terminal = function() {
       this.insertTextRaw(insert, pos, noDiscard);
     },
 
-    /* Remove and insert some amount of lines after the given position */
-    spliceLines: function(y, remove, insert) {
-      this.checkMounted();
-      /* Resolve coordinate */
-      y = this._resolveY(y);
+    /* Raw line manipulation
+     * Adds or removes the given amounts of lines at the given position; the
+     * lines added are returned as an array (for further processing).
+     * It is the caller's duty to maintain consistency.
+     */
+    _spliceLines: function(y, remove, insert) {
       var content = this._contentNode();
       var lines = content.children;
       /* Remove lines */
       for (var i = 0; i < remove; i++) {
         var line = lines[this._offscreenLines + y];
         if (! line) break;
-        this._clearLine(line, false);
         content.removeChild(line);
       }
       /* Insert lines */
-      var ln = this.getLine(y);
+      var ln = this.getLine(y), added = [];
       if (ln) {
         if (insert > this.size[1]) insert = this.size[1];
         for (var i = 0; i < insert; i++) {
-          content.insertBefore(makeNode("div"), ln);
+          var node = makeNode("div");
+          added.push(node);
+          content.insertBefore(div, ln);
         }
       }
+      /* Done */
+      return added;
+    },
+
+    /* Remove and insert some amount of lines after the given position */
+    spliceLines: function(y, remove, insert) {
+      this.checkMounted();
+      /* Resolve coordinate */
+      y = this._resolveY(y);
+      var attrs = this._prepareAttrs(y);
+      /* Perform actual splicing; apply attributes */
+      this._spliceLines(y, remove, insert).forEach(attrs);
       /* Retain scrolling position */
       this._updatePadding();
     },
@@ -904,7 +914,7 @@ this.Terminal = function() {
       if (before) {
         for (var y = 0; y < pos[1]; y++) {
           var ln = lines[this._offscreenLines + y];
-          this._clearLine(ln, true);
+          this._clearLine(ln);
           attrs(ln);
         }
       }
@@ -912,7 +922,6 @@ this.Terminal = function() {
         var fl = this._offscreenLines + pos[1] + 1;
         while (lines.length > fl) {
           var ln = content.lastElementChild;
-          this._clearLine(ln, false);
           content.removeChild(ln);
         }
         attrs(content);
@@ -921,7 +930,6 @@ this.Terminal = function() {
       if (scrollback) {
         var fl = lines.length - this._offscreenLines;
         while (lines.length > fl) {
-          this._clearLine(lines[0], false);
           content.removeChild(lines[0]);
         }
         this._offscreenLines = 0;
