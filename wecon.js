@@ -837,7 +837,7 @@ this.Terminal = function() {
     spliceLines: function(y, remove, insert) {
       this.checkMounted();
       /* Resolve coordinate */
-      if (y == null) y = this.curPos[1];
+      y = this._resolveY(y);
       var content = this._contentNode();
       var lines = content.children;
       /* Remove lines */
