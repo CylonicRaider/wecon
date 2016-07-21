@@ -330,6 +330,16 @@ this.Terminal = function() {
       }
       /* Store pixel size for later checking */
       this._oldSize = [this.node.offsetWidth, this.node.offsetHeight];
+      /* Update tab stops */
+      var ow = (this.size) ? this.size[0] : 0;
+      var tba = [], tbd = [];
+      for (var x = ow; x < curWidth; x++) {
+        if (x && x % 8 == 0) tba.push(x);
+      }
+      for (var x = ow; x >= curWidth; x--) {
+        if (this.tabStops[x]) tbd.push(x);
+      }
+      this.editTabStops(tba, tbd);
       /* Store window size */
       if (this.size) {
         this.size[0] = curWidth;
@@ -405,7 +415,7 @@ this.Terminal = function() {
       var node = this._contentNode();
       if (node) {
         var f = this.tabStops.hasOwnProperty.bind(this.tabStops);
-        var ts = this.tabStops.keys().filter(f).join(" ");
+        var ts = Object.keys(this.tabStops).filter(f).join(" ");
         node.setAttribute("data-cursor-x", this.curPos[0]);
         node.setAttribute("data-cursor-y", this.curPos[1]);
         node.setAttribute("data-cur-fg", this.curFg || "");
@@ -429,7 +439,7 @@ this.Terminal = function() {
         var ts = node.getAttribute("data-tab-stops") || "";
         ts.split(" ").forEach(function(el) {
           this.tabStops[el] = true;
-        });
+        }.bind(this));
         /* Remove old values */
         node.removeAttribute("data-cursor-x");
         node.removeAttribute("data-cursor-y");
@@ -1001,10 +1011,10 @@ this.Terminal = function() {
       if (typeof add == "number") add = [add];
       if (typeof del == "number") del = [del];
       if (add) {
-        add.forEach(function(el) { this.tabStops[el] = true; });
+        add.forEach(function(el) { this.tabStops[el] = true; }.bind(this));
       }
       if (del) {
-        del.forEach(function(el) { delete this.tabStops[el]; });
+        del.forEach(function(el) { delete this.tabStops[el]; }.bind(this));
       }
     },
 
@@ -1014,6 +1024,7 @@ this.Terminal = function() {
         this.curPos[0]++;
       } while (this.curPos[0] < this.size[0] &&
                ! this.tabStops[this.curPos[0]]);
+      if (this.curPos[0] > this.size[0]) this.curPos[0] = this.size[0];
     },
 
     /* Invoke the terminal's bell or try to attract user attention otherwise
