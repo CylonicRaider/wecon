@@ -143,23 +143,28 @@ this.Terminal = function() {
    *             immediately discarded; when set to positive infinity,
    *             arbitrarily many lines are stored.
    * Additional attributes:
-   * node    : The DOM node the terminal is residing in.
-   * size    : The actual size of the terminal as a [width, height] array (in
-   *           character cells), or null if never shown yet.
-   * curPos  : The current cursor position as an (x, y) array. Both
-   *           coordinates must be not less than zero; the y coordinate must
-   *           be less than the height and the x coordinate must be not
-   *           greater (!) than the width. The initial value is [0, 0].
-   *           NOTE (explicitly) that the x coordinate may be equal to the
-   *                width.
-   *           Changing the attribute will not update the DOM; invoke the
-   *           placeCursor() method for that.
-   * curFg   : The current foreground color index, or null if the default is
-   *           to be used.
-   * curBg   : The current background color index, or null if the default is
-   *           to be used.
-   * curAttrs: The current display attributes as a bitmask of the constants
-   *           Terminal.ATTR.*.
+   * node      : The DOM node the terminal is residing in.
+   * size      : The actual size of the terminal as a [width, height] array
+   *             (in character cells), or null if never shown yet.
+   * curPos    : The current cursor position as an (x, y) array. Both
+   *             coordinates must be not less than zero; the y coordinate
+   *             must be less than the height and the x coordinate must be
+   *             not greater (!) than the width. The initial value is [0, 0].
+   *             NOTE (explicitly) that the x coordinate may be equal to the
+   *                  width.
+   *             Changing the attribute will not update the DOM; invoke the
+   *             placeCursor() method for that.
+   * curFg     : The current foreground color index, or null if the default
+   *             is to be used.
+   * curBg     : The current background color index, or null if the default
+   *             is to be used.
+   * curAttrs  : The current display attributes as a bitmask of the constants
+   *             Terminal.ATTR.*.
+   * tabStops  : An object mapping tab stop indices to true values. The
+   *             values are assigned no semantics (and are frankly unlikely
+   *             to be), aside from being truthy.
+   * savedAttrs: The last attribute save as recorded by saveAttributes()
+   *             (unless prevented).
    */
   function Terminal(options) {
     if (! options) options = {};
@@ -169,7 +174,7 @@ this.Terminal = function() {
     this.visualBell = options.visualBell;
     this.scrollback = options.scrollback;
     this.node = null;
-    this.savedAttributes = null;
+    this.savedAttrs = null;
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
     this._resize = this.resize.bind(this);
@@ -991,14 +996,14 @@ this.Terminal = function() {
       restore.pos.attrs = this.curAttrs;
       /* Possibly persist closure */
       var ret = restore.bind(restore);
-      if (! noPersist) this.savedAttributes = ret;
+      if (! noPersist) this.savedAttrs = ret;
       /* Done */
       return ret;
     },
 
     /* Restore the attributes as saved before by saveAttributes() */
     restoreAttributes: function() {
-      if (this.savedAttributes) this.savedAttributes();
+      if (this.savedAttrs) this.savedAttrs();
     },
 
     /* Add or remove tab stops as specified
