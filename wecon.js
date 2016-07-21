@@ -871,7 +871,9 @@ this.Terminal = function() {
       if (after) to = null;
       /* Actually erase */
       var range = this._cellRange(line, from, to);
-      if (after) {
+      if (! before && ! after) {
+        /* NOP */
+      } else if (after) {
         range.forEach(line.removeChild.bind(line));
         /* Assign attributes */
         attrs(line);
