@@ -169,7 +169,6 @@ this.Terminal = function() {
     this.visualBell = options.visualBell;
     this.scrollback = options.scrollback;
     this.node = null;
-    this.size = null;
     this.savedAttributes = null;
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
@@ -214,6 +213,7 @@ this.Terminal = function() {
         this.node.innerHTML = "";
         this.selectScreen(0);
       } else {
+        this.size = null;
         this.curPos = [0, 0];
         this.curFg = null;
         this.curBg = null;
@@ -226,6 +226,7 @@ this.Terminal = function() {
             cn.innerHTML = "";
             this._prepareAttrs()(cn);
           }
+          this.resize(true);
         }
       }
     },
@@ -415,53 +416,48 @@ this.Terminal = function() {
       var node = this._contentNode();
       if (node) {
         var f = this.tabStops.hasOwnProperty.bind(this.tabStops);
-        var ts = Object.keys(this.tabStops).filter(f).join(" ");
-        node.setAttribute("data-cursor-x", this.curPos[0]);
-        node.setAttribute("data-cursor-y", this.curPos[1]);
-        node.setAttribute("data-cur-fg", this.curFg || "");
-        node.setAttribute("data-cur-bg", this.curBg || "");
-        node.setAttribute("data-cur-attrs", this.curAttrs);
-        node.setAttribute("data-offscreen-lines", this._offscreenLines);
-        node.setAttribute("data-tab-stops", ts);
+        var ts = Object.keys(this.tabStops).filter(f);
+        node.setAttribute("data-state", JSON.stringify({
+          pos: this.curPos, fg: this.curFg, bg: this.curBg,
+          attrs: this.curAttrs, offscreenLines: this._offscreenLines,
+          tabStops: ts}));
         node.classList.remove("visible");
       }
       /* Thaw data from new node, or allocate one */
       node = this.node.querySelector("pre[data-screen-id=\"" + id + "\"]");
       if (node) {
         /* Restore parameters */
-        this.curPos = [+node.getAttribute("data-cursor-x"),
-                       +node.getAttribute("data-cursor-y")];
-        this.curFg = node.getAttribute("data-cur-fg") || null;
-        this.curBg = node.getAttribute("data-cur-bg") || null;
-        this.curAttrs = +node.getAttribute("data-cur-attrs");
-        this._offscreenLines = +node.getAttribute("data-offscreen-lines");
+        var state = {};
+        try {
+          state = JSON.parse(node.getAttribute("data-state"));
+        } catch (e) {}
+        this.curPos = state.pos || [0, 0];
+        this.curFg = state.fg || null;
+        this.curBg = state.bg || null;
+        this.curAttrs = +state.attrs;
+        this._offscreenLines = +state.offscreenLines;
         this.tabStops = {};
-        var ts = node.getAttribute("data-tab-stops") || "";
-        ts.split(" ").forEach(function(el) {
+        (state.tabStops || []).forEach(function(el) {
           this.tabStops[el] = true;
         }.bind(this));
         /* Remove old values */
-        node.removeAttribute("data-cursor-x");
-        node.removeAttribute("data-cursor-y");
-        node.removeAttribute("data-cur-fg");
-        node.removeAttribute("data-cur-bg");
-        node.removeAttribute("data-cur-attrs");
-        node.removeAttribute("data-offscreen-lines");
-        node.removeAttribute("data-tab-tops");
+        node.removeAttribute("data-state");
         node.classList.add("visible");
+        /* Update current ID */
+        this._currentScreen = id;
+        /* Update node size */
+        this.resize(true);
       } else {
         /* Allocate new node */
         node = makeNode("pre");
         node.setAttribute("data-screen-id", id);
         this.node.appendChild(node);
         node.classList.add("visible");
+        /* Update current ID */
+        this._currentScreen = id;
         /* Reset */
         this.reset(false);
       }
-      /* Update current ID */
-      this._currentScreen = id;
-      /* Update node size */
-      this.resize(true);
     },
 
     /* Return the ID of the currently selected alternate screen
