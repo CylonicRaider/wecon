@@ -31,27 +31,17 @@ window.addEventListener('load', function() {
   term.setAttributes(15, 4);
   term.placeCursor(40, 10);
   term.eraseDisplay(true, false);
+  term.setScrollRegion(5, 20);
   term.setAttributes(15, 1, Terminal.ATTR.ITALIC | Terminal.ATTR.REVERSE);
   term.eraseDisplay(false, true);
   term.placeCursor(68, null);
-  var save = term.saveAttributes();
   term.writeTextRaw("Hello World!");
-  term.setAttributes(undefined, undefined, Terminal.ATTR.BOLD);
-  term.eraseLine(false, true);
-  save();
-  var region = [20, 25];
-  region.fg = 0;
-  region.bg = 2;
-  term.scroll(-3, region);
-  term.scroll(1, region);
-  term.selectScreen(1);
-  term.writeTextRaw("Loading, please wait...");
-  setTimeout(function() {
-    term.selectScreen(0);
-  }, 1000);
-  setTimeout(function() {
-    term.beep();
-  }, 2000);
+  term.setAttributes(0, 2);
+  term.navigateCursor(0, 25);
+  term.newLine(true, true, false);
+  term.newLine(true, true, false);
+  term.navigateCursor(0, -25);
+  term.newLine(true, true, true);
 });
     </script>
   </head>

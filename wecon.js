@@ -987,7 +987,7 @@ this.Terminal = function() {
         if (reverse) {
           /* Reverse line feed. Waaah! */
           if (couldScroll) {
-            if (this.curPos[0] == this.scrollReg[0]) {
+            if (this.curPos[1] == this.scrollReg[0]) {
               /* Scroll down */
               this.scroll(-1);
             } else if (this.curPos[1] > 0) {
