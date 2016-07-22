@@ -515,7 +515,7 @@ this.Terminal = function() {
       /* Obtain contents and lines */
       var content = this._contentNode();
       var lines = content.children;
-      var attrs = this._prepareAttrs(content);
+      var attrs = this._prepareAttrs(content, true);
       /* Amend lines */
       var fullLength = this._offscreenLines + y + 1;
       while (lines.length < fullLength) {
@@ -568,7 +568,7 @@ this.Terminal = function() {
      */
     growCells: function(line, x, pad) {
       this.checkMounted();
-      var attrs = this._prepareAttrs(line);
+      var attrs = this._prepareAttrs(line, true);
       var children = line.children, cell;
       for (var i = 0; i <= x; i++) {
         cell = children[i];
@@ -638,8 +638,6 @@ this.Terminal = function() {
      * If pos or any part of it is missing, the cursor position (or the
      * corresponding part of it) is reported.
      * The position is ensured to be within the terminal's bounds.
-     * The .fg, .bg, and .attrs are replaced by their counterparts
-     * from this if not present (=== undefined).
      */
     _resolvePosition: function(pos) {
       if (! pos) pos = [this.curPos[0], this.curPos[1]];
@@ -649,9 +647,6 @@ this.Terminal = function() {
       if (pos[1] >= this.size[1]) pos[1] = this.size[1] - 1;
       if (pos[0] < 0) pos[0] = 0;
       if (pos[1] < 0) pos[1] = 0;
-      if (pos.fg === undefined) pos.fg = this.curFg;
-      if (pos.bg === undefined) pos.bg = this.curBg;
-      if (pos.attrs === undefined) pos.attrs = this.curAttrs;
       return pos;
     },
 
@@ -671,10 +666,6 @@ this.Terminal = function() {
       if (y < 0) y = 0;
       /* Create object */
       y = new Number(y);
-      /* Insert attributes */
-      if (y.fg === undefined) y.fg = this.curFg;
-      if (y.bg === undefined) y.bg = this.curBg;
-      if (y.attrs === undefined) y.attrs = this.curAttrs;
       /* Done */
       return y;
     },
@@ -683,14 +674,22 @@ this.Terminal = function() {
      * to any cell it's called on
      * If base is null, the terminal's current attributes are used.
      * If base is a DOM node, its data-attrs attribute is applied.
+     * If amend is true, missing (i.e. === undefined) attribute values are
+     * amended from this.curFg, this.curBg, this.curAttrs, respectively.
      */
-    _prepareAttrs: function(base) {
+    _prepareAttrs: function(base, amend) {
       var attrs = "";
       if (base == null || typeof base != "object")
         base = {attrs: this.curAttrs, fg: this.curFg, bg: this.curBg};
       if (typeof base == "object" && base.nodeType !== undefined) {
         attrs = base.getAttribute("data-attrs");
       } else {
+        /* Possibly amend */
+        if (amend) {
+          if (base.fg === undefined) base.fg = this.curFg;
+          if (base.bg === undefined) base.bg = this.curBg;
+          if (base.attrs === undefined) base.attrs = this.curAttrs;
+        }
         /* Scan attributes */
         for (var i = 1; i <= Terminal.ATTR._MAX; i <<= 1) {
           if (base.attrs & i) attrs += " " + Terminal.ATTRNAME[i];
@@ -713,15 +712,14 @@ this.Terminal = function() {
         attrs = attrs.replace(/^ /, "");
       }
       /* Result */
+      var ret;
       if (attrs) {
-        return function(node) {
-          node.setAttribute("data-attrs", attrs);
-        };
+        ret = function(node) { node.setAttribute("data-attrs", attrs); };
       } else {
-        return function(node) {
-          node.removeAttribute("data-attrs");
-        };
+        ret = function(node) { node.removeAttribute("data-attrs"); };
       }
+      ret.attrs = attrs;
+      return ret;
     },
 
     /* Draw some text onto the output area
@@ -735,7 +733,7 @@ this.Terminal = function() {
       this.checkMounted();
       /* Resolve initial position */
       pos = this._resolvePosition(pos);
-      var attrs = this._prepareAttrs(pos);
+      var attrs = this._prepareAttrs(pos, true);
       /* Save decremented width; do not perform costy DOM manipulation if
        * no text given */
       var tlm1 = text.length - 1;
@@ -807,7 +805,7 @@ this.Terminal = function() {
       this.checkMounted();
       /* Resolve position */
       pos = this._resolvePosition(pos);
-      var attrs = this._prepareAttrs(pos);
+      var attrs = this._prepareAttrs(pos, true);
       /* Acquire various variables */
       var line = this.growLines(pos[1]);
       var cell = this.growCells(line, pos[0], true);
@@ -896,7 +894,7 @@ this.Terminal = function() {
       this.checkMounted();
       /* Resolve coordinate */
       y = this._resolveY(y);
-      var attrs = this._prepareAttrs(y);
+      var attrs = this._prepareAttrs(y, true);
       /* Perform actual splicing; apply attributes */
       this._spliceLines(y, remove, insert).forEach(attrs);
       /* Retain scrolling position */
@@ -907,7 +905,7 @@ this.Terminal = function() {
     eraseLine: function(before, after, pos) {
       /* Resolve position */
       pos = this._resolvePosition(pos);
-      var attrs = this._prepareAttrs(pos);
+      var attrs = this._prepareAttrs(pos, true);
       /* Determine line and bounds */
       var line = this.getLine(pos[1]);
       if (! line) return;
@@ -938,7 +936,7 @@ this.Terminal = function() {
       this.checkMounted();
       /* Resolve position */
       var pos = this._resolvePosition(pos);
-      var attrs = this._prepareAttrs(pos);
+      var attrs = this._prepareAttrs(pos, true);
       /* Obtain reference to line array */
       var content = this._contentNode();
       var lines = content.children;
@@ -1127,7 +1125,7 @@ this.Terminal = function() {
       if (region[0] == null) region[0] = this.scrollReg[0];
       if (region[1] == null) region[1] = this.scrollReg[1];
       /* Extract display attributes */
-      var attrs = this._prepareAttrs(region);
+      var attrs = this._prepareAttrs(region, true);
       /* Abort early if nothing to do */
       if (! n) return;
       /* Determine if the scrollback buffer will be used */
