@@ -651,21 +651,14 @@ this.Terminal = function() {
     },
 
     /* Resolve the given Y coordinate WRT the current cursor position
-     * The .fg, .bg, .attrs attributes are filled in if necessary.
      */
     _resolveY: function(y) {
-      /* Turn into an object */
+      /* Resolve missing values */
       if (Array.isArray(y)) y = y[1];
-      if (y == null) {
-        y = this.curPos[1];
-      } else if (Array.isArray(y)) {
-        y = y[1];
-      }
+      if (y == null) y = this.curPos[1];
       /* Constrain to bounds */
       if (y >= this.size[1]) y = this.size[1] - 1;
       if (y < 0) y = 0;
-      /* Create object */
-      y = new Number(y);
       /* Done */
       return y;
     },
