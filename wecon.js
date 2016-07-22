@@ -894,10 +894,21 @@ this.Terminal = function() {
       /* Resolve coordinate */
       y = this._resolveY(y);
       var attrs = this._prepareAttrs(y, true);
-      /* Perform actual splicing; apply attributes */
-      this._spliceLines(y, remove, insert).forEach(attrs);
-      /* Retain scrolling position */
-      this._updatePadding();
+      /* Perform action */
+      if (attrs.region) {
+        /* Insertion and deletion only work within scrolling regions (although
+         * it is different across different console emulators). */
+        if (y >= attrs.region[0] || y < attrs.region[1]) {
+          /* Line manipulation becomes scrolling */
+          this.scroll(remove, [y, attrs.region[1]], true);
+          this.scroll(-insert, [y, attrs.region[1]], true);
+        }
+      } else {
+        /* Perform actual splicing; apply attributes */
+        this._spliceLines(y, remove, insert).forEach(attrs);
+        /* Retain scrolling position */
+        this._updatePadding();
+      }
     },
 
     /* Erase part of the line as indicated by pos or the cursor position */

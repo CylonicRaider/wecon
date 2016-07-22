@@ -29,7 +29,7 @@ window.addEventListener('load', function() {
   window.term = new Terminal({width: 80, height: 25, scrollback: 1000});
   term.mount(document.getElementById('terminal'));
   term.setAttributes(15, 4);
-  term.placeCursor(40, 10);
+  term.placeCursor(40, 15);
   term.eraseDisplay(true, false);
   term.setAttributes(0, 7);
   term.setScrollRegion(5, 20);
@@ -38,13 +38,9 @@ window.addEventListener('load', function() {
   term.placeCursor(68, null);
   term.writeTextRaw("Hello World!");
   term.setAttributes(0, 2, 0);
-  term.navigateCursor(0, 25);
-  term.newLine(true, true, false);
-  term.newLine(true, true, false);
-  term.navigateCursor(0, -25);
-  term.newLine(true, true, true);
+  term.placeCursor(0, 5);
+  term.spliceLines(null, 5, 3);
   term.setScrollRegion();
-  term.scroll(-3);
 });
     </script>
   </head>
