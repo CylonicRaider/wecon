@@ -617,9 +617,21 @@ this.Terminal = function() {
     },
 
     /* Move the cursor relatively to its current position */
-    moveCursor: function(x, y) {
-      this.placeCursor(this.curPos[0] + (x || 0),
-                       this.curPos[1] + (y || 0));
+    moveCursor: function(dx, dy) {
+      this.placeCursor(this.curPos[0] + (dx || 0),
+                       this.curPos[1] + (dy || 0));
+    },
+
+    /* Move the cursor relatively whilst respecting the scrolling region */
+    navigateCursor: function(dx, dy) {
+      if (! this.scrollReg) this.moveCursor(dx, dy);
+      var nx = this.curPos[0] + (dx || 0);
+      var ny = this.curPos[1] + (dy || 0);
+      if (this.curPos[1] < this.scrollReg[1] && ny >= this.scrollReg[1])
+        ny = this.scrollReg[1] - 1;
+      if (this.curPos[1] >= this.scrollReg[0] && ny < this.scrollReg[0])
+        ny = this.scrollReg[0];
+      this.placeCursor(nx, ny);
     },
 
     /* Resolve the given position WRT the current cursor position
