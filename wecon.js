@@ -671,7 +671,8 @@ this.Terminal = function() {
      * amended from this.curFg, this.curBg, this.curAttrs, respectively.
      */
     _prepareAttrs: function(base, amend) {
-      var attrs = "";
+      /* Resolve attributes */
+      var attrs = "", region = null;
       if (base == null || typeof base != "object")
         base = {attrs: this.curAttrs, fg: this.curFg, bg: this.curBg};
       if (typeof base == "object" && base.nodeType !== undefined) {
@@ -703,7 +704,12 @@ this.Terminal = function() {
         }
         /* Strip leading space */
         attrs = attrs.replace(/^ /, "");
+        /* Appply scrolling regoin */
+        if (base.region) region = base.region;
       }
+      /* Resolve scrolling region */
+      if (! region && this.scrollReg)
+        region = [this.scrollReg[0], this.scrollReg[1]];
       /* Result */
       var ret;
       if (attrs) {
@@ -711,7 +717,7 @@ this.Terminal = function() {
       } else {
         ret = function(node) { node.removeAttribute("data-attrs"); };
       }
-      ret.attrs = attrs;
+      ret.region = region;
       return ret;
     },
 
@@ -750,9 +756,9 @@ this.Terminal = function() {
             pos[0] = 0;
             pos[1]++;
             /* Respect scrolling regions */
-            if (this.scrollReg) {
-              if (this.scrollReg[0] != this.scrollReg[1] &&
-                  pos[1] == this.scrollReg[1]) {
+            if (attrs.region) {
+              if (attrs.region[0] != attrs.region[1] &&
+                  pos[1] == attrs.region[1]) {
                 pos[1]--;
                 this.scroll(1);
               } else if (pos[1] == this.size[1]) {
@@ -1113,12 +1119,14 @@ this.Terminal = function() {
      * If noScrollback is true, the scrollback buffer is never modified.
      */
     scroll: function(n, region, noScrollback) {
-      /* Resolve region */
-      if (! region) region = [this.scrollReg[0], this.scrollReg[1]];
-      if (region[0] == null) region[0] = this.scrollReg[0];
-      if (region[1] == null) region[1] = this.scrollReg[1];
       /* Extract display attributes */
       var attrs = this._prepareAttrs(region, true);
+      /* Resolve region */
+      var oreg = attrs.region;
+      if (oreg == null) oreg = [0, this.size[1]];
+      if (region == null) region = oreg;
+      if (region[0] == null) region[0] = oreg[0];
+      if (region[1] == null) region[1] = oreg[1];
       /* Abort early if nothing to do */
       if (! n) return;
       /* Determine if the scrollback buffer will be used */

@@ -31,6 +31,7 @@ window.addEventListener('load', function() {
   term.setAttributes(15, 4);
   term.placeCursor(40, 10);
   term.eraseDisplay(true, false);
+  term.setAttributes(0, 7);
   term.setScrollRegion(5, 20);
   term.setAttributes(15, 1, Terminal.ATTR.ITALIC | Terminal.ATTR.REVERSE);
   term.eraseDisplay(false, true);
@@ -42,6 +43,8 @@ window.addEventListener('load', function() {
   term.newLine(true, true, false);
   term.navigateCursor(0, -25);
   term.newLine(true, true, true);
+  term.setScrollRegion();
+  term.scroll(-3);
 });
     </script>
   </head>
