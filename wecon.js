@@ -26,6 +26,19 @@ this.Terminal = function() {
       return String.fromCharCode(cp >>> 10 | 0xD800, cp & 0x3FF | 0xDC00);
     },
 
+    /* String.codePointAt shim */
+    _toCodePoint: (String.codePointAt) ?
+        function(s) { return s.codePointAt(0); } : function(s) {
+      if (/^[\uD800-\uDBFF][\uDC00-\uDFFF]$/.test(s)) {
+        return ((s.charCodeAt(0) & 0x3FF) << 10) +
+               (s.charCodeAt(1) & 0x3FF) + 0x10000;
+      } else if (s.length == 1) {
+        return s.charCodeAt(0);
+      } else {
+        throw RangeError("Bad string for codepoint extraction: " + s);
+      }
+    },
+
     /* Return by how many bytes the end of the buffer is incomplete, or zero
      * if not */
     _checkIncomplete: function(buffer) {
@@ -130,6 +143,174 @@ this.Terminal = function() {
     }
   };
 
+  /* Stateful escape sequence parser
+   * Attributes:
+   * init    : The initial state, an EscapeParser.State object. If null,
+   *           characters are passed through without further processing.
+   * cur     : The current state, an EscapeParser.State object. If null,
+   *           the initial state is substituted upon the next character.
+   * fallback: Fall-back callback for characters for which no processor
+   *           is found.
+   * state   : The current state object.
+   */
+  function EscapeParser() {
+    this.init = null;
+    this.cur = null;
+    this.fallback = null;
+    this.state = null;
+  }
+
+  EscapeParser.prototype = {
+    /* Return (and create if necessary) the initial state node */
+    first: function() {
+      if (! this.init) {
+        this.init = new EscapeParser.State();
+      }
+      return this.init;
+    },
+
+    /* Convenience wrapper for this.first().on(...) */
+    on: function() {
+      var first = this.first();
+      return first.on.apply(first, arguments);
+    },
+
+    /* Process a character (or multiple)
+     * It is the caller's obligation to maintain surrogate pairs together.
+     */
+    process: function(s) {
+      var slm1 = s.length - 1;
+      for (var i = 0; i <= slm1; i++) {
+        /* Extract character */
+        var ch = s[i];
+        if (/[\uD800-\uDBFF]/.test(ch) && i < slm1 &&
+            /[\uDC00-\uDFFF]/.test(s[i + 1]))
+          ch += s[++i];
+        /* Allocate state object */
+        if (this.state == null) this.state = {};
+        /* Update current node */
+        if (this.cur == null) {
+          this.cur = this.init;
+        }
+        if (this.cur != null) {
+          /* Run callback */
+          var res = this.cur.run(this.state, ch);
+          /* Transition to next state */
+          if (res.ok) {
+            this.cur = res.next;
+            if (! this.cur) this.state = null;
+            continue;
+          }
+        }
+        /* As a last resort, run the global fallback */
+        if (this.fallback != null) {
+          this.fallback.call(this.state, ch, null);
+        }
+        /* Reset */
+        this.cur = null;
+        this.state = null;
+      }
+    }
+  };
+
+  /* A node of the EscapeParser state tree
+   * When the node is invoked, the callback (if configured) is called with
+   * the this reference pointing to a state object as inherited from the
+   * previous node (or an empty object if this is the first one), and
+   * following arguments:
+   * - The current character.
+   * - This node (null if it's the global fallback).
+   * If the callback returns true, processing stops.
+   * After invoking the callback, a successor is searched from the configured
+   * ones by the current character and stored for later invocation.
+   * If no successor is found, the fallback (if configured) is called, with
+   * the same arguments as the callback; if it does return true, processing
+   * stops again.
+   * As a last resort, the parser's global fallback (if configured) is
+   * called (it retains the arguments from above, apart from "this node"
+   * being null); whether it does return true or not, the character is
+   * effectively discarded after that unless some callback processes it.
+   * Attributes:
+   * callback  : The callback of this state.
+   * successors: A character->state mapping of successor states. Can be
+   *             configured using the on() method.
+   * fallback  : A default callback for characters not covered otherwise.
+   */
+  EscapeParser.State = function(callback) {
+    this.callback = callback || null;
+    this.successors = null;
+    this.fallback = null;
+  };
+
+  EscapeParser.State.prototype = {
+    /* Process the given character WRT the given state object and return how
+     * to proceed
+     */
+    run: function(state, ch) {
+      if (this.callback && this.callback.apply(state, ch, this))
+        return {ok: true, next: null};
+      var succ = this.successors[ch];
+      if (succ)
+        return {ok: true, next: succ};
+      if (this.fallback && this.fallback.apply(state, ch, this))
+        return {ok: true, next: null};
+      return {ok: false};
+    },
+
+    /* Reset the callback, successors, and fallback of this instance */
+    clear: function() {
+      this.callback = null;
+      this.successors = null;
+      this.fallback = null;
+    },
+
+    /* Install a handler for some amount of characters
+     * If handler is a function, a new EscapeParser.State instance is created
+     * with handler as the callback.
+     * The new state (be it handler or newly-created) is returned.
+     */
+    on: function(s, handler) {
+      /* Convert functions into nodes */
+      if (typeof handler == "function")
+        handler = new EscapeParser.State(handler);
+      /* Parse character specification */
+      var chars = [];
+      var ch = null, slm1 = s.length - 1, groupStart = null;
+      for (var i = 0; i <= slm1; i++) {
+        /* Check for groups */
+        if (s[i] == "-" && i > 0 && i < slm1) {
+          groupStart = ch;
+          continue;
+        }
+        /* Extract character */
+        var ch = s[i];
+        if (/[\uD800-\uDBFF]/.test(ch) && i < slm1 &&
+            /[\uDC00-\uDFFF]/.test(s[i + 1]))
+          ch += s[++i];
+        /* Check for groups */
+        if (groupStart != null) {
+          /* Insert character range */
+          var fromCP = UTF8Dec._fromCodePoint, toCP = UTF8Dec._toCodePoint;
+          var from = fromCP(groupStart), to = fromCP(ch);
+          var step = (from <= to) ? 1 : -1;
+          for (var i = from; i != to; i += step) {
+            chars.push(toCP(i));
+          }
+          /* Reset group mode */
+          groupStart = null;
+        }
+        /* Just append character */
+        chars.push(ch);
+      }
+      /* Assign handler to each character */
+      chars.forEach(function(el) {
+        this.successors[el] = handler;
+      }.bind(this));
+      /* Return result for chaining */
+      return handler;
+    }
+  };
+
   /* Actual terminal emulator. options specifies parameters of the terminal:
    * width     : The terminal should have the given (fixed) width; if not set,
    *             it will adapt to the container.
@@ -182,6 +363,7 @@ this.Terminal = function() {
     this.savedAttrs = null;
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
+    this._parser = new EscapeParser();
     this._resize = this.resize.bind(this);
     this._pendingBells = [];
     this.reset(false);
