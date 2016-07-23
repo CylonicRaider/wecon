@@ -175,6 +175,12 @@ this.Terminal = function() {
       return first.on.apply(first, arguments);
     },
 
+    /* Convenience wrapper for this.first().at(...) */
+    at: function() {
+      var first = this.first();
+      return first.at.apply(first, arguments);
+    },
+
     /* Process a character (or multiple)
      * It is the caller's obligation to maintain surrogate pairs together.
      */
@@ -238,7 +244,7 @@ this.Terminal = function() {
    */
   EscapeParser.State = function(callback) {
     this.callback = callback || null;
-    this.successors = null;
+    this.successors = {};
     this.fallback = null;
   };
 
@@ -247,12 +253,12 @@ this.Terminal = function() {
      * to proceed
      */
     run: function(state, ch) {
-      if (this.callback && this.callback.apply(state, ch, this))
+      if (this.callback && this.callback.call(state, ch, this))
         return {ok: true, next: null};
       var succ = this.successors[ch];
       if (succ)
         return {ok: true, next: succ};
-      if (this.fallback && this.fallback.apply(state, ch, this))
+      if (this.fallback && this.fallback.call(state, ch, this))
         return {ok: true, next: null};
       return {ok: false};
     },
@@ -260,7 +266,7 @@ this.Terminal = function() {
     /* Reset the callback, successors, and fallback of this instance */
     clear: function() {
       this.callback = null;
-      this.successors = null;
+      this.successors = {};
       this.fallback = null;
     },
 
@@ -308,6 +314,11 @@ this.Terminal = function() {
       }.bind(this));
       /* Return result for chaining */
       return handler;
+    },
+
+    /* Return the successor state for the given character or null if none */
+    at: function(ch) {
+      return this.successors[ch] || null;
     }
   };
 
@@ -361,9 +372,9 @@ this.Terminal = function() {
     this.scrollback = options.scrollback;
     this.node = null;
     this.savedAttrs = null;
+    this.parser = new EscapeParser();
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
-    this._parser = new EscapeParser();
     this._resize = this.resize.bind(this);
     this._pendingBells = [];
     this.reset(false);
