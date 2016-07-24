@@ -150,7 +150,8 @@ this.Terminal = function() {
    * cur     : The current state, an EscapeParser.State object. If null,
    *           the initial state is substituted upon the next character.
    * fallback: Fall-back callback for characters for which no processor
-   *           is found.
+   *           is found. See the description of EscapeParser.State.fallback
+   *           for invocation details.
    * state   : The current state object.
    */
   function EscapeParser() {
@@ -192,74 +193,95 @@ this.Terminal = function() {
         if (/[\uD800-\uDBFF]/.test(ch) && i < slm1 &&
             /[\uDC00-\uDFFF]/.test(s[i + 1]))
           ch += s[++i];
-        /* Allocate state object */
-        if (this.state == null) this.state = {};
-        /* Update current node */
-        if (this.cur == null) {
+        /* Possibly reset to initial state */
+        if (! this.cur) {
           this.cur = this.init;
+          this.state = {};
+          if (this.cur) this.cur._changed(this.state, null);
         }
-        if (this.cur != null) {
-          /* Run callback */
-          var res = this.cur.run(this.state, ch);
-          /* Transition to next state */
+        /* Transition to next state */
+        var ok = false;
+        if (this.cur) {
+          var res = this.cur._run(this.state, ch);
           if (res.ok) {
+            /* Successor found */
+            ok = true;
             this.cur = res.next;
-            if (! this.cur) this.state = null;
-            continue;
+            if (this.cur) {
+              /* Call post-change hook */
+              this.cur._changed(this.state, ch);
+            } else {
+              /* Finish reset */
+              this.state = null;
+            }
           }
         }
-        /* As a last resort, run the global fallback */
-        if (this.fallback != null) {
-          this.fallback.call(this.state, ch, null);
+        /* If transition failed, reset */
+        if (! ok) {
+          /* Last chance to revive */
+          if (this.fallback) {
+            this.cur = this.fallback.call(this.state, ch, null) || null;
+          }
+          /* Finish reset */
+          if (! this.cur) this.state = null;
         }
-        /* Reset */
-        this.cur = null;
-        this.state = null;
       }
     }
   };
 
-  /* A node of the EscapeParser state tree
-   * When the node is invoked, the callback (if configured) is called with
-   * the this reference pointing to a state object as inherited from the
-   * previous node (or an empty object if this is the first one), and
-   * following arguments:
-   * - The current character.
-   * - This node (null if it's the global fallback).
-   * If the callback returns true, processing stops.
-   * After invoking the callback, a successor is searched from the configured
-   * ones by the current character and stored for later invocation.
-   * If no successor is found, the fallback (if configured) is called, with
-   * the same arguments as the callback; if it does return true, processing
-   * stops again.
-   * As a last resort, the parser's global fallback (if configured) is
-   * called (it retains the arguments from above, apart from "this node"
-   * being null); whether it does return true or not, the character is
-   * effectively discarded after that unless some callback processes it.
+  /* A node of the EscapeParser state graph
+   * State transitions are caused by single "characters" (which can also be
+   * surrogate pairs). For each character, the transition table of the
+   * current state is checked, if it does contain a mapping for the
+   * character, the new state is assumed; if it does not contain a mapping
+   * for the current character, the fallback callback is invoked (if
+   * present), which can provide another state to transition to; if it does
+   * not, the parser-level global fallback is asked. After each transition,
+   * the callback of the new state is invoked (if present). If no transition
+   * if found for the current character (and in the very beginning), the
+   * parser is reset.
+   * Each callback is invoked with a "state object" that is changed to a
+   * freshly allocated object upon each reset; see the attribute descriptions
+   * for details.
    * Attributes:
-   * callback  : The callback of this state.
-   * successors: A character->state mapping of successor states. Can be
-   *             configured using the on() method.
-   * fallback  : A default callback for characters not covered otherwise.
+   * callback  : A function that is invoked when this state is transitioned
+   *             to. Called with the this variable set to the state object,
+   *             which is either freshly created when the initial state is
+   *             reset to or retained from the last operations, and the
+   *             character that caused the transition (null if resetting to
+   *             the initial state) and the EscapeParser.State instance the
+   *             callback belongs to. The return value is presently ignored.
+   * successors: A character->state mapping of successor states.
+   * fallback  : A callback that is invoked when no state from the successor
+   *             mapping matched. The return value (if true) is taken to be
+   *             be the new state; if it is not, processing proceeds with the
+   *             parser-level global fallback, for which the same semantics
+   *             apply. The arguments are the same as for callback, except
+   *             that the state parameter is null for the global fallback.
    */
-  EscapeParser.State = function(callback) {
+  EscapeParser.State = function(callback, fallback) {
     this.callback = callback || null;
     this.successors = {};
-    this.fallback = null;
+    this.fallback = fallback || null;
   };
 
   EscapeParser.State.prototype = {
+    /* Handle the transition to this state */
+    _changed: function(state, ch) {
+      if (! this.callback) return;
+      this.callback.call(state, ch, this);
+    },
+
     /* Process the given character WRT the given state object and return how
      * to proceed
      */
-    run: function(state, ch) {
-      if (this.callback && this.callback.call(state, ch, this))
-        return {ok: true, next: null};
+    _run: function(state, ch) {
       var succ = this.successors[ch];
-      if (succ)
-        return {ok: true, next: succ};
-      if (this.fallback && this.fallback.call(state, ch, this))
-        return {ok: true, next: null};
+      if (succ) return {ok: true, next: succ};
+      if (this.fallback) {
+        succ = this.fallback.call(state, ch, this) || null;
+        if (succ) return {ok: true, next: succ};
+      }
       return {ok: false};
     },
 
@@ -275,10 +297,12 @@ this.Terminal = function() {
      * with handler as the callback.
      * The new state (be it handler or newly-created) is returned.
      */
-    on: function(s, handler) {
+    on: function(s, handler, fallback) {
       /* Convert functions into nodes */
       if (typeof handler == "function")
         handler = new EscapeParser.State(handler);
+      if (fallback)
+        handler.fallback = fallback;
       /* Parse character specification */
       var chars = [];
       var ch = null, slm1 = s.length - 1, groupStart = null;
