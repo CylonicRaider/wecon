@@ -1015,40 +1015,58 @@ this.Terminal = function() {
     /* Insert text at the given position (or the cursor position), shifting
      * the remainder of the line to the right
      * Since this is inherently a line-based operation, no wrapping is
-     * performed. Unless noDiscard is true, the characters pushed out of the
-     * visible area.
+     * performed.
+     * Unless noDiscard is true, characters that would be outside the visible
+     * area of the terminal are discarded, with the very last character
+     * displayed in the last visible column.
+     * Unless noMove is true, the cursor is moved to the right by the length
+     * of the text, up to the right border of the visible area (even if
+     * noDiscard is true).
      * If text is a number, the amount of spaces as indicated by it is
      * inserted.
      */
-    insertTextRaw: function(text, pos, noDiscard) {
+    insertTextRaw: function(text, pos, noMove, noDiscard) {
       this.checkMounted();
       /* Resolve position */
       pos = this._resolvePosition(pos);
       var attrs = this._prepareAttrs(pos, true);
       /* Acquire various variables */
       var line = this.growLines(pos[1]);
+      var children = line.children;
       var cell = this.growCells(line, pos[0], true);
       var isNumber = (typeof text == "number");
       var tlm1 = (isNumber) ? text - 1 : text.length - 1;
-      if (noDiscard) n = Math.min(n, this.size[0]);
       for (var i = 0; i <= tlm1; i++) {
         var ch = (isNumber) ? " " : text[i];
         /* Decode surrogate pairs */
         if (/[\uD800-\uDBFF]/.test(ch) && i < tlm1 &&
             /[\uDC00-\uDFFF]/.test(text[i + 1]))
           ch += text[++i];
+        /* Check if character should be replaced */
+        pos[0]++;
+        var replace = (pos[0] >= this.size[0] && ! noDiscard);
         /* Insert character */
-        var nc = makeNode("span", "cell");
+        var nc;
+        if (replace) {
+          nc = children[this.size[0] - 1];
+        } else {
+          nc = makeNode("span", "cell");
+        }
         attrs(nc);
         nc.textContent = ch;
-        line.insertBefore(nc, cell);
+        if (! replace) line.insertBefore(nc, cell);
       }
       /* Truncate line if necessary */
       if (! noDiscard) {
         this.eraseLine(false, true, [this.size[0], pos[1]]);
       }
       /* Ensure the cursor has not moved away */
-      this._placeCursor();
+      if (noMove) {
+        this._placeCursor();
+      } else {
+        if (pos[0] >= this.size[0]) pos[0] = this.size[0] - 1;
+        this._placeCursor(pos[0], pos[1]);
+      }
     },
 
     /* Remove some amount of characters one a line and insert some blank
