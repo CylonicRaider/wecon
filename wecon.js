@@ -221,6 +221,8 @@ this.Terminal = function() {
           /* Last chance to revive */
           if (this.fallback) {
             this.cur = this.fallback.call(this.state, ch, null) || null;
+          } else {
+            this.cur = null;
           }
           /* Finish reset */
           if (! this.cur) this.state = null;
@@ -320,11 +322,12 @@ this.Terminal = function() {
         /* Check for groups */
         if (groupStart != null) {
           /* Insert character range */
-          var fromCP = UTF8Dec._fromCodePoint, toCP = UTF8Dec._toCodePoint;
-          var from = fromCP(groupStart), to = fromCP(ch);
+          var fromCP = UTF8Dec.prototype._fromCodePoint;
+          var toCP = UTF8Dec.prototype._toCodePoint;
+          var from = toCP(groupStart), to = toCP(ch);
           var step = (from <= to) ? 1 : -1;
           for (var i = from; i != to; i += step) {
-            chars.push(toCP(i));
+            chars.push(fromCP(i));
           }
           /* Reset group mode */
           groupStart = null;
