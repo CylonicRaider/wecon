@@ -854,7 +854,7 @@ this.Terminal = function() {
      * If make is true, a new cell is created on demand.
      */
     _nextCell: function(cell, make) {
-      var ret = cell.nextElementChild;
+      var ret = cell.nextElementSibling;
       if (! ret && make) {
         ret = makeNode("span", "cell");
         cell.parentNode.appendChild(ret);
