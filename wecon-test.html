@@ -41,6 +41,8 @@ window.addEventListener('load', function() {
   term.placeCursor(0, 5);
   term.spliceLines(null, 5, 3);
   term.setScrollRegion();
+  term.write("This is a write() test.\r\nThis is another line.\r\n" +
+    "3rd line.\r\n4th line.\r\n");
 });
     </script>
   </head>

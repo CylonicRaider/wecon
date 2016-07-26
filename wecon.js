@@ -209,7 +209,12 @@ this.Terminal = function() {
             this.cur = res.next;
             if (this.cur) {
               /* Call post-change hook */
-              this.cur._changed(this.state, ch);
+              for (;;) {
+                var ns = this.cur._changed(this.state, ch);
+                if (ns == null) break;
+                this.cur = ns;
+                ch = null;
+              }
             } else {
               /* Finish reset */
               this.state = null;
@@ -252,7 +257,9 @@ this.Terminal = function() {
    *             reset to or retained from the last operations, and the
    *             character that caused the transition (null if resetting to
    *             the initial state) and the EscapeParser.State instance the
-   *             callback belongs to. The return value is presently ignored.
+   *             callback belongs to. Returns a new state to switch to (the
+   *             callback whereof will be called as well, etc), or null to
+   *             stay at the current state.
    * successors: A character->state mapping of successor states.
    * fallback  : A callback that is invoked when no state from the successor
    *             mapping matched. The return value (if true) is taken to be
@@ -270,8 +277,8 @@ this.Terminal = function() {
   EscapeParser.State.prototype = {
     /* Handle the transition to this state */
     _changed: function(state, ch) {
-      if (! this.callback) return;
-      this.callback.call(state, ch, this);
+      if (! this.callback) return null;
+      return this.callback.call(state, ch, this);
     },
 
     /* Process the given character WRT the given state object and return how
@@ -349,6 +356,58 @@ this.Terminal = function() {
     }
   };
 
+  /* Two-stage text (and miscellaneous action) accumulator */
+  function TextAccumulator() {
+    this._text = "";
+    this._queue = [];
+  }
+
+  TextAccumulator.prototype = {
+    /* Queue some text
+     * Consequent pieces of text are coalesced. */
+    addText: function(text) {
+      this._text += text;
+    },
+
+    /* Queue a function call
+     * func is the function to call,
+     * self is the this argument to pass,
+     * args is an array of position arguments to pass.
+     */
+    addCall: function(func, self, args) {
+      if (this._text) {
+        this._queue.push(this._text);
+        this._text = "";
+      }
+      this._queue.push([func, self, args]);
+    },
+
+    /* Return the current queue contents and clear the queue */
+    pop: function() {
+      if (this._text) {
+        this._queue.push(this._text);
+        this._text = "";
+      }
+      var ret = this._queue;
+      this._queue = [];
+      return ret;
+    },
+
+    /* Flush the queue, running any functions from it
+     * Text is processed by the callback as provided by the caller,
+     * with assignments similar to addCall. The piece of text to be
+     * processed is passed as the only positional argument of func. */
+    run: function(func, self) {
+      this.pop().forEach(function(el) {
+        if (typeof el == "string") {
+          func.call(self, el);
+        } else {
+          el[0].apply(el[1], el[2]);
+        }
+      });
+    }
+  };
+
   /* Actual terminal emulator. options specifies parameters of the terminal:
    * width     : The terminal should have the given (fixed) width; if not set,
    *             it will adapt to the container.
@@ -402,8 +461,11 @@ this.Terminal = function() {
     this.parser = new EscapeParser();
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
+    this._accum = new TextAccumulator();
     this._resize = this.resize.bind(this);
     this._pendingBells = [];
+    this._pendingUpdate = null;
+    this._initParser();
     this.reset(false);
   }
 
@@ -437,6 +499,26 @@ this.Terminal = function() {
   };
 
   Terminal.prototype = {
+    /* Initialize the internal parser
+     * Called internally. */
+    _initParser: function() {
+      var first = this.parser.first();
+      first.clear();
+      first.on("\r", function() {
+        this._accum.addCall(this.newLine, this, [true, false]);
+        return first;
+      }.bind(this));
+      first.on("\n", function() {
+        this._accum.addCall(this.newLine, this, [false, true]);
+        return first;
+      }.bind(this));
+      first.on("\b", function() {
+        this._accum.addCall(this.moveCursor, this, [-1, 0]);
+        return first;
+      }.bind(this));
+      this.parser.fallback = this._accum.addText.bind(this._accum);
+    },
+
     /* Reset the entire terminal or the current screen */
     reset: function(full) {
       if (full && this.node) {
@@ -1430,6 +1512,45 @@ this.Terminal = function() {
       } else {
         this.bell.play();
       }
+    },
+
+    /* Feed the given amount of Unicode codepoints to display or processing
+     * This is what you want to use for displaying already-decoded text. */
+    write: function(text) {
+      this._writeStr(this._decoder.flush() + text);
+    },
+
+    /* Feed the given amount of binary data to display or processing
+     * Here goes the input stream you receive from the client. */
+    writeBin: function(data) {
+      this._writeStr(this._decoder.decode(data));
+    },
+
+    /* Process the given text and schedule display as necessary */
+    _writeStr: function(text) {
+      this.parser.process(text);
+      if (this._pendingUpdate) return;
+      this._pendingUpdate = [
+        requestAnimationFrame(function() {
+          this._pendingUpdate[0] = null;
+          this.flush();
+        }.bind(this)),
+        setTimeout(function() {
+          this._pendingUpdate[1] = null;
+          this.flush();
+        }.bind(this), 1000)];
+    },
+
+    /* Actually render the state changes queued by write() and writeBin() */
+    flush: function() {
+      /* Clear timeouts */
+      if (this._pendingUpdate) {
+        cancelAnimationFrame(this._pendingUpdate[0]);
+        clearTimeout(this._pendingUpdate[1]);
+        this._pendingUpdate = null;
+      }
+      // As of now, only overwrite mode is implemented.
+      this._accum.run(this.writeTextRaw, this);
     }
   };
 
