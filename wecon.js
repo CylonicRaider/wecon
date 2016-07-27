@@ -402,7 +402,7 @@ this.Terminal = function() {
         if (typeof el == "string") {
           func.call(self, el);
         } else {
-          el[0].apply(el[1], el[2]);
+          el[0].apply(el[1], el[2] || []);
         }
       });
     }
@@ -504,16 +504,24 @@ this.Terminal = function() {
     _initParser: function() {
       var first = this.parser.first();
       first.clear();
-      first.on("\r", function() {
-        this._accum.addCall(this.newLine, this, [true, false]);
-        return first;
-      }.bind(this));
-      first.on("\n", function() {
-        this._accum.addCall(this.newLine, this, [false, true]);
+      first.on("\a", function() {
+        this._accum.addCall(this.beep, this);
         return first;
       }.bind(this));
       first.on("\b", function() {
         this._accum.addCall(this.moveCursor, this, [-1, 0]);
+        return first;
+      }.bind(this));
+      first.on("\t", function() {
+        this._accum.addCall(this.tabulate, this);
+        return first;
+      }.bind(this));
+      first.on("\n\v\f", function() {
+        this._accum.addCall(this.newLine, this, [false, true]);
+        return first;
+      }.bind(this));
+      first.on("\r", function() {
+        this._accum.addCall(this.newLine, this, [true, false]);
         return first;
       }.bind(this));
       this.parser.fallback = this._accum.addText.bind(this._accum);
