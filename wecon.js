@@ -308,7 +308,7 @@ this.Terminal = function() {
      */
     on: function(s, handler, fallback) {
       /* Convert functions into nodes */
-      if (typeof handler == "function")
+      if (typeof handler == "function" || handler == null)
         handler = new EscapeParser.State(handler);
       if (fallback)
         handler.fallback = fallback;
@@ -523,6 +523,10 @@ this.Terminal = function() {
       first.on("\r", function() {
         this._accum.addCall(this.newLine, this, [true, false]);
         return first;
+      }.bind(this));
+      first.on("\x1b").on("@-_", function(ch) {
+        var cc = ch.charCodeAt(0) + 64;
+        return first.at(String.fromCharCode(cc)) || null;
       }.bind(this));
       first.on("\x85", function() {
         this._accum.addCall(this.newLine, this, [true, true]);
