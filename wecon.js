@@ -516,12 +516,20 @@ this.Terminal = function() {
         this._accum.addCall(this.tabulate, this);
         return first;
       }.bind(this));
-      first.on("\n\v\f", function() {
+      first.on("\n\v\f\x84", function() {
         this._accum.addCall(this.newLine, this, [false, true]);
         return first;
       }.bind(this));
       first.on("\r", function() {
         this._accum.addCall(this.newLine, this, [true, false]);
+        return first;
+      }.bind(this));
+      first.on("\x85", function() {
+        this._accum.addCall(this.newLine, this, [true, true]);
+        return first;
+      }.bind(this));
+      first.on("\x8d", function() {
+        this._accum.addCall(this.newLine, this, [false, true, true]);
         return first;
       }.bind(this));
       this.parser.fallback = this._accum.addText.bind(this._accum);
