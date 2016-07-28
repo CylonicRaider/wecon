@@ -350,9 +350,15 @@ this.Terminal = function() {
       return handler;
     },
 
-    /* Return the successor state for the given character or null if none */
+    /* Return the successor state for the given character or a newly-created
+     * no-op state if none */
     at: function(ch) {
-      return this.successors[ch] || null;
+      var ret = this.successors[ch];
+      if (! ret) {
+        ret = new EscapeParser.State();
+        this.successors[ch] = ret;
+      }
+      return ret;
     }
   };
 
@@ -524,7 +530,7 @@ this.Terminal = function() {
         this._accum.addCall(this.newLine, this, [true, false]);
         return first;
       }.bind(this));
-      first.on("\x1b").on("@-_", function(ch) {
+      first.at("\x1b").on("@-_", function(ch) {
         var cc = ch.charCodeAt(0) + 64;
         return first.at(String.fromCharCode(cc)) || null;
       }.bind(this));
