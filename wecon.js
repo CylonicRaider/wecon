@@ -530,10 +530,12 @@ this.Terminal = function() {
         this._accum.addCall(this.newLine, this, [true, false]);
         return first;
       }.bind(this));
+      first.at("\x1b").at("#").on("@-~"); // Ignore.
       first.at("\x1b").on("@-_", function(ch) {
         var cc = ch.charCodeAt(0) + 64;
         return first.at(String.fromCharCode(cc)) || null;
       }.bind(this));
+      first.at("\x1b").on("`-~"); // Ignore.
       first.on("\x85", function() {
         this._accum.addCall(this.newLine, this, [true, true]);
         return first;
