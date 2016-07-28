@@ -510,7 +510,7 @@ this.Terminal = function() {
     _initParser: function() {
       var first = this.parser.first();
       first.clear();
-      first.on("\a", function() {
+      first.on("\x07", function() {
         this._accum.addCall(this.beep, this);
         return first;
       }.bind(this));
