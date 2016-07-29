@@ -421,7 +421,7 @@ this.Terminal = function() {
    * bell       : An <audio> element (or anything having a play() method)
    *              that should be invoked for a BEL character.
    * visualBell : If true, bells will be indicated by shortly flashing the
-   *              terminal output, independently from bell.
+   *              terminal output, without invoking bell ever.
    * scrollback : Length of the scrollback buffer. When not set or less than
    *              the current height, all lines "above" the display area are
    *              immediately discarded; when set to positive infinity,
@@ -1553,7 +1553,8 @@ this.Terminal = function() {
     },
 
     /* Invoke the terminal's bell or try to attract user attention otherwise
-     * If no acoustical bell is present, the visual bell is invoked.
+     * If no acoustical bell is present or the visualBell option is true, the
+     * visual bell is invoked.
      */
     beep: function() {
       /* Helper */
