@@ -41,7 +41,8 @@ window.addEventListener('load', function() {
   term.placeCursor(0, 5);
   term.spliceLines(null, 5, 3);
   term.setScrollRegion();
-  term.write("This is a write() test.\rThis should over-write().");
+  term.write("This is a write() test.\rThis should over-write()." +
+    "\x1b[15;20H.\b\x1b[A^\b\x1b[2Bv\b\x1b[A\x1b[C>\033[3D<");
 });
     </script>
   </head>

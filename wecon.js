@@ -480,6 +480,7 @@ this.Terminal = function() {
     this._pendingBells = [];
     this._pendingUpdate = null;
     this._initParser();
+    this._initControls();
     this.reset(false);
   }
 
@@ -571,7 +572,12 @@ this.Terminal = function() {
       });
       var csiF = csi.on("@-~", function(ch) {
         this.func += ch;
-        self.handleCSI(this);
+        var params = {params: this.params, func: this.func};
+        self._accum.addCall(self.handleCSI, self, [params]);
+        delete this.csi;
+        delete this.params;
+        delete this.func;
+        return first;
       });
       csiP.on("0-?", csiP);
       csiP.on(" -/", csiI);
@@ -579,6 +585,70 @@ this.Terminal = function() {
       csiI.on(" -/", csiI);
       csiI.on("@-~", csiF);
       this.parser.fallback = this._accum.addText.bind(this._accum);
+    },
+
+    /* Install handlers for the usually recognized CSI sequences
+     * Called internally.
+     */
+    _initControls: function() {
+      /* Helpers */
+      var ia = function(code, func) {
+        this.addCSI(code, function(params) {
+          func.call(this, params.paramArray || []);
+        });
+      }.bind(this);
+      var ih = function(code, func) {
+        this.addCSI(code, function(params) {
+          func.apply(this, params.paramArray || []);
+        });
+      }.bind(this);
+      var ip = function(code, func) {
+        this.addCSI(code, function(params) {
+          (params.paramArray || []).forEach(function(el) {
+            func.call(this, el);
+          }.bind(this));
+        });
+      }.bind(this);
+      /* Actual handlers */
+      ih("@", function(n) { this.spliceCharacters(null, 0, n || 1); });
+      ih("A", function(n) { this.navigateCursor(0, -(n || 1)); });
+      ih("B", function(n) { this.navigateCursor(0, n || 1); });
+      ih("C", function(n) { this.moveCursor(n || 1, 0); });
+      ih("D", function(n) { this.moveCursor(-(n || 1), 0); });
+      ih("E", function(n) { this.navigateCursor(0, n || 1);
+                            this.moveCursor(0, null); });
+      ih("F", function(n) { this.navigateCursor(0, -(n || 1));
+                            this.moveCursor(0, null); });
+      ih("G", function(n) { this.moveCursor(n - 1, null); });
+      ih("H", function(y, x) { this.placeCursor(x - 1, y - 1); });
+      ih("I", function(n) { this.tabulate(1); });
+      ip("J", function(p) { if (p == null) p = 0;
+                            this.eraseDisplay((p == 0 || p == 2),
+                                              (p == 1 || p == 2),
+                                              (p == 3)); });
+      ip("K", function(p) { if (p == null) p = 0;
+                            this.eraseLine((p == 0 || p == 2),
+                                           (p == 1 || p == 2)); });
+      ih("L", function(n) { this.spliceLines(null, 0, n || 1); });
+      ih("M", function(n) { this.spliceLines(null, n || 1, 0); });
+      /* N (EF - ERASE IN FIELD) and O (EA - ERASE IN AREA) are N/I. */
+      ih("P", function(n) { this.spliceCharacters(null, n || 1, 0); });
+      /* Other not implemented functions are henceforth not mentioned. */
+      ih("X", function(n) { this.spliceCharacters(null, n || 1, n || 1); });
+      ih("a", function(n) { this.moveCursor(n || 1, 0); });
+      ih("d", function(n) { this.moveCursor(null, n || 1); });
+      ih("e", function(n) { this.navigateCursor(0, n || 1); });
+      ih("f", function(y, x) { this.moveCursor(x - 1, y - 1); });
+      ip("g", function(p) {
+        if (g == 0) this.editTabStops(null, this.curPos[0]);
+        if (g == 3) this.editTabStops(null, this.getTabStops()); });
+      /* h (SM - SET MODE) and l (RM - RESET MODE) are NYI. */
+      /* m (SGR - SELECT GRAPHIC RENDITION ) is NYI. */
+      ih("r", function(t, b) { this.setScrollRegion(t - 1, b - 1);
+                               this.placeCursor(0, 0); });
+      ih("s", function() { this.saveAttributes(); });
+      ih("u", function() { this.restoreAttributes(); });
+      ih("`", function(n) { this.moveCursor(n || 1, null); });
     },
 
     /* Reset the entire terminal or the current screen */
@@ -988,7 +1058,10 @@ this.Terminal = function() {
 
     /* Move the cursor relatively whilst respecting the scrolling region */
     navigateCursor: function(dx, dy) {
-      if (! this.scrollReg) this.moveCursor(dx, dy);
+      if (! this.scrollReg) {
+        this.moveCursor(dx, dy);
+        return;
+      }
       var nx = this.curPos[0] + (dx || 0);
       var ny = this.curPos[1] + (dy || 0);
       if (this.curPos[1] < this.scrollReg[1] && ny >= this.scrollReg[1])
@@ -1460,6 +1533,12 @@ this.Terminal = function() {
       if (this.savedAttrs) this.savedAttrs();
     },
 
+    /* Return an array of the current tab stops */
+    getTabStops: function() {
+      var f = this.tabStops.hasOwnProperty.bind(this.tabStops);
+      return Object.keys(this.tabStops).filter(f);
+    },
+
     /* Add or remove tab stops as specified
      * add is an array of tab stop indices to add, del is one of such to
      * remove.
@@ -1480,12 +1559,18 @@ this.Terminal = function() {
     },
 
     /* Move the cursor to the next horizontal tab stop */
-    tabulate: function() {
+    _tabulate: function() {
       do {
         this.curPos[0]++;
       } while (this.curPos[0] < this.size[0] &&
                ! this.tabStops[this.curPos[0]]);
       if (this.curPos[0] > this.size[0]) this.curPos[0] = this.size[0];
+    },
+
+    /* Move the cursor by to the next horizontal tab stop n times */
+    tabulate: function(n) {
+      if (n == null) n = 1;
+      for (var i = 0; i < n; i++) this._tabulate();
     },
 
     /* Set the scrolling region
