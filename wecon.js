@@ -508,42 +508,35 @@ this.Terminal = function() {
     /* Initialize the internal parser
      * Called internally. */
     _initParser: function() {
+      /* Helper */
+      function callAndReturn(func, self, args) {
+        return function() {
+          self._accum.addCall(func, self, args);
+          return first;
+        };
+      }
+      /* Capture current this in closure */
+      var self = this;
+      /* Set up parser */
       var first = this.parser.first();
       first.clear();
-      first.on("\x07", function() {
-        this._accum.addCall(this.beep, this);
-        return first;
-      }.bind(this));
-      first.on("\b", function() {
-        this._accum.addCall(this.moveCursor, this, [-1, 0]);
-        return first;
-      }.bind(this));
-      first.on("\t", function() {
-        this._accum.addCall(this.tabulate, this);
-        return first;
-      }.bind(this));
-      first.on("\n\v\f\x84", function() {
-        this._accum.addCall(this.newLine, this, [false, true]);
-        return first;
-      }.bind(this));
-      first.on("\r", function() {
-        this._accum.addCall(this.newLine, this, [true, false]);
-        return first;
-      }.bind(this));
+      first.on("\x07", callAndReturn(self.beep, self));
+      first.on("\b", callAndReturn(self.moveCursor, self, [-1, 0]));
+      first.on("\t", callAndReturn(self.tabulate, self));
+      first.on("\n\v\f\x84", callAndReturn(self.newLine, self,
+                                           [false, true]));
+      first.on("\r", callAndReturn(self.newLine, self,
+                                   [true, false]));
       first.at("\x1b").at("#").on("@-~"); // Ignore.
       first.at("\x1b").on("@-_", function(ch) {
         var cc = ch.charCodeAt(0) + 64;
         return first.successors[String.fromCharCode(cc)] || null;
-      }.bind(this));
+      });
       first.at("\x1b").on("`-~"); // Ignore.
-      first.on("\x85", function() {
-        this._accum.addCall(this.newLine, this, [true, true]);
-        return first;
-      }.bind(this));
-      first.on("\x8d", function() {
-        this._accum.addCall(this.newLine, this, [false, true, true]);
-        return first;
-      }.bind(this));
+      first.on("\x85", callAndReturn(self.newLine, self,
+                                     [true, true]));
+      first.on("\x8d", callAndReturn(self.newLine, self,
+                                     [false, true, true]));
       this.parser.fallback = this._accum.addText.bind(this._accum);
     },
 
