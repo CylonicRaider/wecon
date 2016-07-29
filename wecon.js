@@ -415,45 +415,52 @@ this.Terminal = function() {
   };
 
   /* Actual terminal emulator. options specifies parameters of the terminal:
-   * width     : The terminal should have the given (fixed) width; if not set,
-   *             it will adapt to the container.
-   * height    : Fixed height.
-   * bell      : An <audio> element (or anything having a play() method) that
-   *             should be invoked for a BEL character.
-   * visualBell: If true, bells will be indicated by shortly flashing the
-   *             terminal output, independently from bell.
-   * scrollback: Length of the scrollback buffer. When not set or less than
-   *             the current height, all lines "above" the display area are
-   *             immediately discarded; when set to positive infinity,
-   *             arbitrarily many lines are stored.
+   * width      : The terminal should have the given (fixed) width; if not
+   *              set, it will adapt to the container.
+   * height     : Fixed height.
+   * bell       : An <audio> element (or anything having a play() method)
+   *              that should be invoked for a BEL character.
+   * visualBell : If true, bells will be indicated by shortly flashing the
+   *              terminal output, independently from bell.
+   * scrollback : Length of the scrollback buffer. When not set or less than
+   *              the current height, all lines "above" the display area are
+   *              immediately discarded; when set to positive infinity,
+   *              arbitrarily many lines are stored.
    * Additional attributes:
-   * node      : The DOM node the terminal is residing in.
-   * size      : The actual size of the terminal as a [width, height] array
-   *             (in character cells), or null if never shown yet.
-   * curPos    : The current cursor position as an (x, y) array. Both
-   *             coordinates must be not less than zero; the y coordinate
-   *             must be less than the height and the x coordinate must be
-   *             not greater (!) than the width. The initial value is [0, 0].
-   *             NOTE (explicitly) that the x coordinate may be equal to the
-   *                  width.
-   *             Changing the attribute will not update the DOM; invoke the
-   *             placeCursor() method for that.
-   * curFg     : The current foreground color index, or null if the default
-   *             is to be used.
-   * curBg     : The current background color index, or null if the default
-   *             is to be used.
-   * curAttrs  : The current display attributes as a bitmask of the constants
-   *             Terminal.ATTR.*.
-   * tabStops  : An object mapping tab stop indices to true values. The
-   *             values are assigned no semantics (and are frankly unlikely
-   *             to be), aside from being truthy.
-   * scrollReg : The current scrolling region as a [top, bottom] array (top
-   *             inclusively, bottom exclusively), or null if there is no
-   *             explicit scrolling region. The scrollback buffer is filled
-   *             by lines scrolling off the top only if there is no scrolling
-   *             region or the top is at row 0.
-   * savedAttrs: The last attribute save as recorded by saveAttributes()
-   *             (unless prevented).
+   * node       : The DOM node the terminal is residing in.
+   * size       : The actual size of the terminal as a [width, height] array
+   *              (in character cells), or null if never shown yet.
+   * curPos     : The current cursor position as an (x, y) array. Both
+   *              coordinates must be not less than zero; the y coordinate
+   *              must be less than the height and the x coordinate must be
+   *              not greater (!) than the width. The initial value is
+   *              [0, 0].
+   *              NOTE (explicitly) that the x coordinate may be equal to the
+   *                   width.
+   *              Changing the attribute will not update the DOM; invoke the
+   *              placeCursor() method for that.
+   * curFg      : The current foreground color index, or null if the default
+   *              is to be used.
+   * curBg      : The current background color index, or null if the default
+   *              is to be used.
+   * curAttrs   : The current display attributes as a bitmask of the
+   *              constants Terminal.ATTR.*.
+   * tabStops   : An object mapping tab stop indices to true values. The
+   *              values are assigned no semantics (and are frankly unlikely
+   *              to be), aside from being truthy.
+   * scrollReg  : The current scrolling region as a [top, bottom] array (top
+   *              inclusively, bottom exclusively), or null if there is no
+   *              explicit scrolling region. The scrollback buffer is filled
+   *              by lines scrolling off the top only if there is no
+    *             scrolling region or the top is at row 0.
+   * savedAttrs : The last attribute save as recorded by saveAttributes()
+   *              (unless prevented).
+   * parser     : The EscapeParser instance responsible for parsing escape
+   *              sequences. Exposed to allow registering new handlers; if
+   *              other parts of the API are used, undefined behavior occurs.
+   * csiHandlers: A code->function mapping from "effective function strings"
+   *              to callbacks powering CSI escape sequences. See addCSI()
+   *              and handleCSI() for details.
    */
   function Terminal(options) {
     if (! options) options = {};
@@ -465,6 +472,7 @@ this.Terminal = function() {
     this.node = null;
     this.savedAttrs = null;
     this.parser = new EscapeParser();
+    this.csiHandlers = {};
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
     this._accum = new TextAccumulator();
@@ -504,6 +512,19 @@ this.Terminal = function() {
     512: "dblunderline"
   };
 
+  /* Try to parse a (non-private) parameter string according to ECMA-48 */
+  Terminal.parseParamString = function(ps) {
+    return ps.split(";").map(function(el) {
+      if (! el) {
+        return null;
+      } else if (/[0-9]+/.test(el)) {
+        return parseInt(el, 10);
+      } else {
+        return el;
+      }
+    });
+  };
+
   Terminal.prototype = {
     /* Initialize the internal parser
      * Called internally. */
@@ -537,6 +558,26 @@ this.Terminal = function() {
                                      [true, true]));
       first.on("\x8d", callAndReturn(self.newLine, self,
                                      [false, true, true]));
+      var csi = first.on("\x9b", function() {
+        this.csi = true;
+        this.params = "";
+        this.func = "";
+      });
+      var csiP = csi.on("0-?", function(ch) {
+        this.params += ch;
+      });
+      var csiI = csi.on(" -/", function(ch) {
+        this.func += ch;
+      });
+      var csiF = csi.on("@-~", function(ch) {
+        this.func += ch;
+        self.handleCSI(this);
+      });
+      csiP.on("0-?", csiP);
+      csiP.on(" -/", csiI);
+      csiP.on("@-~", csiF);
+      csiI.on(" -/", csiI);
+      csiI.on("@-~", csiF);
       this.parser.fallback = this._accum.addText.bind(this._accum);
     },
 
@@ -1533,6 +1574,56 @@ this.Terminal = function() {
       } else {
         this.bell.play();
       }
+    },
+
+    /* Install a handler for a CSI sequence
+     * func is the effective function string (as explained under handleCSI);
+     * callback is a function to call when the CSI function is reached. When
+     * the control function subscribed to is invoked, the callback is called
+     * with the this variable pointing to the terminal emulator instance and
+     * the parameter object as elaborated under handleCSI as the only
+     * argument.
+     */
+    addCSI: function(func, callback) {
+      this.csiHandlers[func] = callback;
+      return callback;
+    },
+
+    /* Handle a CSI sequence
+     * The parameter object is expected to have two members:
+     * params: The parameter string (consisting of the parameter bytes).
+     * func  : The function string (consisting of the intermediate bytes and
+     *         the final byte).
+     * Additional members are amended:
+     * paramsPrivate: Whether the parameter string starts with a character
+     *                indicating a private-mode sequence.
+     * funcPrivate  : Whether the final byte is in the private use range
+     *                (independently from paramsPrivate).
+     * isPrivate    : paramsPrivate || funcPrivate
+     * paramArray   : The parsed-out parameter string, as obtainable via
+     *                Terminal.parseParamString(). Only present if the
+     *                parameter string is not private.
+     * effFunc      : The first character of the parameter string if it is
+     *                private (or none otherwise), followed by the
+     *                intermediate bytes and the final byte. The effective
+     *                index into the handler table.
+     * NOTE that the escape sequence parser may inject additional attributes
+     *      not listed here.
+     * Returns false if a handler was not found or its return value is
+     * identical (===) to false or true otherwise to aid monkey-patching.
+     */
+    handleCSI: function(params) {
+      params.paramsPrivate = /^[<-?]/.test(params.params);
+      params.funcPrivate = /[p-~]$/.test(params.func);
+      params.isPrivate = params.paramsPrivate || params.funcPrivate;
+      if (! params.paramsPrivate)
+        params.paramArray = Terminal.parseParamString(params.params);
+      params.effFunc = ((params.paramsPrivate) ? params[0] : "") +
+                       params.func;
+      var handler = this.csiHandlers[params.effFunc];
+      if (! handler) return false;
+      if (handler.call(this, params) === false) return false;
+      return true;
     },
 
     /* Feed the given amount of Unicode codepoints to display or processing
