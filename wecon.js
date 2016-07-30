@@ -1116,22 +1116,22 @@ this.Terminal = function() {
      * amended from this.curFg, this.curBg, this.curAttrs, respectively.
      */
     _prepareAttrs: function(base, amend) {
-      function parseRGB(clr, pref) {
+      function parseRGB(clr) {
         if (! clr) return "";
         var m = RGB_COLOR.exec(clr);
         if (! m) return "";
-        return pref + ":rgb(" + m[1] + "," + m[2] + "," + m[3] + ");";
+        return "rgb(" + m[1] + "," + m[2] + "," + m[3] + ")";
       }
       /* Resolve attributes */
-      var attrs = "", style = "", region = null;
+      var attrs = "", styleFG = "", styleBG = "", region = null;
       if (base == null || typeof base != "object")
         base = {attrs: this.curAttrs, fg: this.curFg, bg: this.curBg};
       if (typeof base == "object" && base.nodeType !== undefined) {
         attrs = base.getAttribute("data-attrs") || "";
         var m = RGB_FG.exec(attrs);
-        if (m) style += parseRGB(m[0], "color");
+        if (m) styleFG = parseRGB(m[0]);
         m = RGB_BG.exec(attrs);
-        if (m) style += parseRGB(m[0], "background");
+        if (m) styleBG = parseRGB(m[0]);
       } else {
         /* Possibly amend */
         if (amend) {
@@ -1149,13 +1149,13 @@ this.Terminal = function() {
         /* Foreground and background */
         if (base.fg != null) {
           attrs += " fg-" + base.fg;
-          style += parseRGB(base.fg, "color");
+          styleFG = parseRGB(base.fg);
         } else {
           attrs += " fg-default";
         }
         if (base.bg != null) {
           attrs += " bg-" + base.bg;
-          style += parseRGB(base.bg, "background");
+          styleBG = parseRGB(base.bg);
         } else {
           attrs += " bg-default";
         }
@@ -1172,12 +1172,14 @@ this.Terminal = function() {
       if (attrs) {
         ret = function(node) {
           node.setAttribute("data-attrs", attrs);
-          node.style = style;
+          node.style.color = styleFG;
+          node.style.background = styleBG;
         };
       } else {
         ret = function(node) {
           node.removeAttribute("data-attrs");
-          node.style = "";
+          node.style.color = "";
+          node.style.background = "";
         };
       }
       ret.region = region;
