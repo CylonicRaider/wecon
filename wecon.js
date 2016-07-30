@@ -484,6 +484,11 @@ this.Terminal = function() {
     this.reset(false);
   }
 
+  /* Text encoding of an RGB triplet for color processing */
+  var RGB_COLOR = /^rgb-(\d+)-(\d+)-(\d+)$/;
+  var RGB_FG = /\bfg-rgb-\d+-\d+-\d+\b/;
+  var RGB_BG = /\bbg-rgb-\d+-\d+-\d+\b/;
+
   /* Text attribute bits */
   Terminal.ATTR = {
     BOLD        :   1, /* Bold */
@@ -1111,12 +1116,22 @@ this.Terminal = function() {
      * amended from this.curFg, this.curBg, this.curAttrs, respectively.
      */
     _prepareAttrs: function(base, amend) {
+      function parseRGB(clr, pref) {
+        if (! clr) return "";
+        var m = RGB_COLOR.exec(clr);
+        if (! m) return "";
+        return pref + ":rgb(" + m[1] + "," + m[2] + "," + m[3] + ");";
+      }
       /* Resolve attributes */
-      var attrs = "", region = null;
+      var attrs = "", style = "", region = null;
       if (base == null || typeof base != "object")
         base = {attrs: this.curAttrs, fg: this.curFg, bg: this.curBg};
       if (typeof base == "object" && base.nodeType !== undefined) {
-        attrs = base.getAttribute("data-attrs");
+        attrs = base.getAttribute("data-attrs") || "";
+        var m = RGB_FG.exec(attrs);
+        if (m) style += parseRGB(m[0], "color");
+        m = RGB_BG.exec(attrs);
+        if (m) style += parseRGB(m[0], "background");
       } else {
         /* Possibly amend */
         if (amend) {
@@ -1134,17 +1149,19 @@ this.Terminal = function() {
         /* Foreground and background */
         if (base.fg != null) {
           attrs += " fg-" + base.fg;
+          style += parseRGB(base.fg, "color");
         } else {
           attrs += " fg-default";
         }
         if (base.bg != null) {
           attrs += " bg-" + base.bg;
+          style += parseRGB(base.bg, "background");
         } else {
           attrs += " bg-default";
         }
         /* Strip leading space */
         attrs = attrs.replace(/^ /, "");
-        /* Appply scrolling regoin */
+        /* Appply scrolling region */
         if (base.region) region = base.region;
       }
       /* Resolve scrolling region */
@@ -1153,9 +1170,15 @@ this.Terminal = function() {
       /* Result */
       var ret;
       if (attrs) {
-        ret = function(node) { node.setAttribute("data-attrs", attrs); };
+        ret = function(node) {
+          node.setAttribute("data-attrs", attrs);
+          node.style = style;
+        };
       } else {
-        ret = function(node) { node.removeAttribute("data-attrs"); };
+        ret = function(node) {
+          node.removeAttribute("data-attrs");
+          node.style = "";
+        };
       }
       ret.region = region;
       return ret;

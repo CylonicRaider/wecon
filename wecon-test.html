@@ -37,7 +37,7 @@ window.addEventListener('load', function() {
   term.eraseDisplay(false, true);
   term.placeCursor(68, null);
   term.writeTextRaw("Hello World!");
-  term.setAttributes(0, 2, 0);
+  term.setAttributes("rgb-5-5-5", "rgb-24-147-37", 0);
   term.placeCursor(0, 5);
   term.spliceLines(null, 5, 3);
   term.setScrollRegion();
