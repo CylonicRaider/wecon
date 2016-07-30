@@ -640,8 +640,8 @@ this.Terminal = function() {
       ih("e", function(n) { this.navigateCursor(0, n || 1); });
       ih("f", function(y, x) { this.moveCursor(x - 1, y - 1); });
       ip("g", function(p) {
-        if (g == 0) this.editTabStops(null, this.curPos[0]);
-        if (g == 3) this.editTabStops(null, this.getTabStops()); });
+        if (g == 0) this.editTabStops(this.curPos[0], null);
+        if (g == 3) this.editTabStops(this.getTabStops(), null); });
       /* h (SM - SET MODE) and l (RM - RESET MODE) are NYI. */
       /* m (SGR - SELECT GRAPHIC RENDITION ) is NYI. */
       ih("r", function(t, b) { this.setScrollRegion(t - 1, b - 1);
@@ -778,14 +778,14 @@ this.Terminal = function() {
       this._oldSize = [this.node.offsetWidth, this.node.offsetHeight];
       /* Update tab stops */
       var ow = (this.size) ? this.size[0] : 0;
-      var tba = [], tbd = [];
-      for (var x = ow; x < curWidth; x++) {
-        if (x && x % 8 == 0) tba.push(x);
-      }
+      var tbd = [], tba = [];
       for (var x = ow; x >= curWidth; x--) {
         if (this.tabStops[x]) tbd.push(x);
       }
-      this.editTabStops(tba, tbd);
+      for (var x = ow; x < curWidth; x++) {
+        if (x && x % 8 == 0) tba.push(x);
+      }
+      this.editTabStops(tbd, tba);
       /* Store window size */
       if (this.size) {
         this.size[0] = curWidth;
@@ -1540,21 +1540,21 @@ this.Terminal = function() {
     },
 
     /* Add or remove tab stops as specified
-     * add is an array of tab stop indices to add, del is one of such to
-     * remove.
+     * del is an array of tab stop indices to remove, add is one of such to
+     * add.
      */
-    editTabStops: function(add, del) {
+    editTabStops: function(del, add) {
       this.checkMounted();
-      if (typeof add == "number") add = [add];
       if (typeof del == "number") del = [del];
+      if (typeof add == "number") add = [add];
+      if (del) {
+        del.forEach(function(el) { delete this.tabStops[el]; }.bind(this));
+      }
       if (add) {
         add.forEach(function(el) {
           if (this.size && el >= this.size[0]) return;
           this.tabStops[el] = true;
         }.bind(this));
-      }
-      if (del) {
-        del.forEach(function(el) { delete this.tabStops[el]; }.bind(this));
       }
     },
 
