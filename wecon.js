@@ -602,9 +602,12 @@ this.Terminal = function() {
           func.apply(this, params.paramArray || []);
         });
       }.bind(this);
-      var ip = function(code, func) {
+      var ip = function(code, func, insert) {
         this.addCSI(code, function(params) {
-          (params.paramArray || []).forEach(function(el) {
+          var arr = [];
+          if (! params.paramArray || ! params.paramArray.length)
+            arr = (insert) ? [null] : [];
+          arr.forEach(function(el) {
             func.call(this, el);
           }.bind(this));
         });
@@ -625,10 +628,10 @@ this.Terminal = function() {
       ip("J", function(p) { if (p == null) p = 0;
                             this.eraseDisplay((p == 0 || p == 2),
                                               (p == 1 || p == 2),
-                                              (p == 3)); });
+                                              (p == 3)); }, true);
       ip("K", function(p) { if (p == null) p = 0;
                             this.eraseLine((p == 0 || p == 2),
-                                           (p == 1 || p == 2)); });
+                                           (p == 1 || p == 2)); }, true);
       ih("L", function(n) { this.spliceLines(null, 0, n || 1); });
       ih("M", function(n) { this.spliceLines(null, n || 1, 0); });
       /* N (EF - ERASE IN FIELD) and O (EA - ERASE IN AREA) are N/I. */
@@ -641,7 +644,7 @@ this.Terminal = function() {
       ih("f", function(y, x) { this.moveCursor(x - 1, y - 1); });
       ip("g", function(p) {
         if (g == 0) this.editTabStops(this.curPos[0], null);
-        if (g == 3) this.editTabStops(this.getTabStops(), null); });
+        if (g == 3) this.editTabStops(this.getTabStops(), null); }, true);
       /* h (SM - SET MODE) and l (RM - RESET MODE) are NYI. */
       /* m (SGR - SELECT GRAPHIC RENDITION ) is NYI. */
       ih("r", function(t, b) { this.setScrollRegion(t - 1, b - 1);
