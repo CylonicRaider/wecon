@@ -523,7 +523,7 @@ this.Terminal = function() {
     return ps.split(";").map(function(el) {
       if (! el) {
         return null;
-      } else if (/[0-9]+/.test(el)) {
+      } else if (/^[0-9]+$/.test(el)) {
         return parseInt(el, 10);
       } else {
         return el;
@@ -597,9 +597,12 @@ this.Terminal = function() {
      */
     _initControls: function() {
       /* Helpers */
-      var ia = function(code, func) {
+      var ia = function(code, func, insert) {
         this.addCSI(code, function(params) {
-          func.call(this, params.paramArray || []);
+          var arr = params.paramArray;
+          if (! arr || ! arr.length)
+            arr = (insert) ? [null] : [];
+          func.call(this, arr);
         });
       }.bind(this);
       var ih = function(code, func) {
@@ -609,8 +612,8 @@ this.Terminal = function() {
       }.bind(this);
       var ip = function(code, func, insert) {
         this.addCSI(code, function(params) {
-          var arr = [];
-          if (! params.paramArray || ! params.paramArray.length)
+          var arr = params.paramArray;
+          if (! arr || ! arr.length)
             arr = (insert) ? [null] : [];
           arr.forEach(function(el) {
             func.call(this, el);
@@ -651,7 +654,7 @@ this.Terminal = function() {
         if (g == 0) this.editTabStops(this.curPos[0], null);
         if (g == 3) this.editTabStops(this.getTabStops(), null); }, true);
       /* h (SM - SET MODE) and l (RM - RESET MODE) are NYI. */
-      /* m (SGR - SELECT GRAPHIC RENDITION ) is NYI. */
+      ia("m", this._handleSGR); /* Outlined because of complexity. */
       ih("r", function(t, b) { this.setScrollRegion(t - 1, b - 1);
                                this.placeCursor(0, 0); });
       ih("s", function() { this.saveAttributes(); });
@@ -1738,6 +1741,103 @@ this.Terminal = function() {
       if (! handler) return false;
       if (handler.call(this, params) === false) return false;
       return true;
+    },
+
+    /* Process a SGR (Select Graphic Rendition) escape sequence
+     * Outlined into a separate method because of the potentially complex
+     * syntax.
+     */
+    _handleSGR: function(params) {
+      var seqLen = 0, seqBuf = null;
+      params.forEach(function(el) {
+        /* Aggregate split multi-part entries */
+        if (seqBuf != null) {
+          seqBuf.push(el);
+          if (seqBuf.length < seqLen) return;
+          el = seqBuf.join(":");
+        }
+        /* Handle single entries */
+        if (el == null) el = 0;
+        switch (el) {
+          case  0: this.setAttributes(null, null, 0); break;
+          case  1: this.curAttrs |= Terminal.ATTR.BOLD; break;
+          case  2: this.curAttrs |= Terminal.ATTR.DIM; break;
+          case  3: this.curAttrs |= Terminal.ATTR.ITALIC; break;
+          case  4: this.curAttrs |= Terminal.ATTR.UNDERLINE; break;
+          case  5: this.curAttrs |= Terminal.ATTR.BLINK; break;
+          case  6: this.curAttrs |= Terminal.ATTR.FASTBLINK; break;
+          case  7: this.curAttrs |= Terminal.ATTR.REVERSE; break;
+          case  8: this.curAttrs |= Terminal.ATTR.HIDDEN; break;
+          case  9: this.curAttrs |= Terminal.ATTR.STRIKE; break;
+          case 21: this.curAttrs |= Terminal.ATTR.DBLUNDERLINE; break;
+          case 22:
+            this.curAttrs &= ~(Terminal.ATTR.BOLD | Terminal.ATTR.DIM);
+            break;
+          case 23: this.curAttrs &= ~Terminal.ATTR.ITALIC; break;
+          case 24:
+            this.curAttrs &= ~(Terminal.ATTR.UNDERLINE |
+                               Terminal.ATTR.DBLUNDERLINE);
+            break;
+          case 25:
+            this.curAttrs &= ~(Terminal.ATTR.BLINK |
+                               Terminal.ATTR.FASTBLINK);
+            break;
+          case 27: this.curAttrs &= ~Terminal.ATTR.REVERSE; break;
+          case 28: this.curAttrs &= ~Terminal.ATTR.HIDDEN; break;
+          case 29: this.curAttrs &= ~Terminal.ATTR.STRIKE; break;
+          case 30: case 31: case 32: case 33:
+          case 34: case 35: case 36: case 37:
+            this.curFg = el - 30;
+            break;
+          case 38:
+            seqLen = 2;
+            seqBuf = [38];
+            return;
+          case 39:
+            this.curFg = null;
+            break;
+          case 40: case 41: case 42: case 43:
+          case 44: case 45: case 46: case 47:
+            this.curBg = el - 40;
+            break;
+          case 48:
+            seqLen = 2;
+            seqBuf = [48];
+            return;
+          case 49:
+            this.curBg = null;
+            break;
+          case 90: case 91: case 92: case 93:
+          case 94: case 95: case 96: case 97:
+            this.curFg = el - 82;
+            break;
+          case 100: case 101: case 102: case 103:
+          case 104: case 105: case 106: case 107:
+            this.curBg = el - 92;
+            break;
+        }
+        /* Possibly accumulate more entries */
+        if (el == "38:2" || el == "48:2") {
+          seqLen = 5;
+          return;
+        } else if (el == "38:5" || el == "48:5") {
+          seqLen = 3;
+          return;
+        }
+        /* Apply! */
+        if (/^38:2:/.test(el)) {
+          this.curFg = "rgb-" + el.substring(5).replace(/:/g, "-");
+        } else if (/^48:2:/.test(el)) {
+          this.curBg = "rgb-" + el.substring(5).replace(/:/g, "-");
+        } else if (/^38:5:/.test(el)) {
+          this.curFg = el.substring(5);
+        } else if (/^48:5:/.test(el)) {
+          this.curBg = el.substring(5);
+        }
+        /* Reset */
+        seqLen = 0;
+        seqBuf = null;
+      }.bind(this));
     },
 
     /* Feed the given amount of Unicode codepoints to display or processing
