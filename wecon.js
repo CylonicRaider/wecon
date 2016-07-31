@@ -589,7 +589,16 @@ this.Terminal = function() {
       csiP.on("@-~", csiF);
       csiI.on(" -/", csiI);
       csiI.on("@-~", csiF);
-      this.parser.fallback = this._accum.addText.bind(this._accum);
+      this.parser.fallback = function(ch) {
+        if (/[\x18\x1a]/.test(ch)) {
+          delete this.csi;
+          delete this.params;
+          delete this.func;
+          return first;
+        } else {
+          self._accum.addText(ch);
+        }
+      };
     },
 
     /* Install handlers for the usually recognized CSI sequences
