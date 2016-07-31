@@ -452,7 +452,7 @@ this.Terminal = function() {
    *              inclusively, bottom exclusively), or null if there is no
    *              explicit scrolling region. The scrollback buffer is filled
    *              by lines scrolling off the top only if there is no
-    *             scrolling region or the top is at row 0.
+   *              scrolling region or the top is at row 0.
    * savedAttrs : The last attribute save as recorded by saveAttributes()
    *              (unless prevented).
    * parser     : The EscapeParser instance responsible for parsing escape
