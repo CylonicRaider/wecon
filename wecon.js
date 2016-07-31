@@ -554,15 +554,16 @@ this.Terminal = function() {
                                            [false, true]));
       first.on("\r", callAndReturn(self.newLine, self,
                                    [true, false]));
-      first.at("\x1b").on("7", callAndReturn(self.saveAttributes, self));
-      first.at("\x1b").on("8", callAndReturn(self.restoreAttributes, self));
-      first.at("\x1b").at("#").on("@-~"); // Ignore.
-      first.at("\x1b").on("@-_", function(ch) {
+      var esc = first.at("\x1b");
+      esc.on("7", callAndReturn(self.saveAttributes, self));
+      esc.on("8", callAndReturn(self.restoreAttributes, self));
+      esc.at("#").on("@-~"); // Ignore.
+      esc.on("@-_", function(ch) {
         var cc = ch.charCodeAt(0) + 64;
         return first.successors[String.fromCharCode(cc)] || null;
       });
-      first.at("\x1b").on("`-~"); // Ignore.
-      first.at("\x1b").on("c", callAndReturn(self.reset, self));
+      esc.on("`-~"); // Ignore.
+      esc.on("c", callAndReturn(self.reset, self));
       first.on("\x85", callAndReturn(self.newLine, self,
                                      [true, true]));
       first.on("\x88", function() {
