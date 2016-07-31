@@ -554,14 +554,23 @@ this.Terminal = function() {
                                            [false, true]));
       first.on("\r", callAndReturn(self.newLine, self,
                                    [true, false]));
+      first.at("\x1b").on("7", callAndReturn(self.saveAttributes, self));
+      first.at("\x1b").on("8", callAndReturn(self.restoreAttributes, self));
       first.at("\x1b").at("#").on("@-~"); // Ignore.
       first.at("\x1b").on("@-_", function(ch) {
         var cc = ch.charCodeAt(0) + 64;
         return first.successors[String.fromCharCode(cc)] || null;
       });
       first.at("\x1b").on("`-~"); // Ignore.
+      first.at("\x1b").on("c", callAndReturn(self.reset, self));
       first.on("\x85", callAndReturn(self.newLine, self,
                                      [true, true]));
+      first.on("\x88", function() {
+        this._accum.addCall(function() {
+          this.editTabStops(null, this.curPos[0]);
+        }, this);
+        return first;
+      });
       first.on("\x8d", callAndReturn(self.newLine, self,
                                      [false, true, true]));
       var csi = first.on("\x9b", function() {
