@@ -411,6 +411,11 @@ this.Terminal = function() {
           el[0].apply(el[1], el[2] || []);
         }
       });
+    },
+
+    /* Return whether there is nothing queued */
+    isEmpty: function() {
+      return (! this._text && ! this._queue.length);
     }
   };
 
@@ -478,7 +483,7 @@ this.Terminal = function() {
     this._accum = new TextAccumulator();
     this._resize = this.resize.bind(this);
     this._pendingBells = [];
-    this._pendingUpdate = null;
+    this._pendingUpdate = [null, null];
     this._initParser();
     this._initControls();
     this.reset(false);
@@ -1874,26 +1879,30 @@ this.Terminal = function() {
     /* Process the given text and schedule display as necessary */
     _writeStr: function(text) {
       this.parser.process(text);
-      if (this._pendingUpdate) return;
-      this._pendingUpdate = [
-        requestAnimationFrame(function() {
+      /* Schedule DOM updates */
+      if (this._pendingUpdate[0] == null) {
+        this._pendingUpdate[0] = requestAnimationFrame(function() {
           this._pendingUpdate[0] = null;
           this.flush();
-        }.bind(this)),
-        setTimeout(function() {
-          this._pendingUpdate[1] = null;
-          this.flush();
-        }.bind(this), 1000)];
+        }.bind(this));
+      }
+      if (this._pendingUpdate[1] == null) {
+        this._pendingUpdate[1] = setInterval(this.flush.bind(this), 1000);
+      }
     },
 
     /* Actually render the state changes queued by write() and writeBin() */
     flush: function() {
-      /* Clear timeouts */
-      if (this._pendingUpdate) {
+      /* Possibly clear pending updates */
+      if (this._pendingUpdate[0] != null) {
         cancelAnimationFrame(this._pendingUpdate[0]);
-        clearTimeout(this._pendingUpdate[1]);
-        this._pendingUpdate = null;
+        this._pendingUpdate[0] = null;
       }
+      if (this._pendingUpdate[1] != null && this._accum.isEmpty()) {
+        clearInterval(this._pendingUpdate[1]);
+        this._pendingUpdate[1] = null;
+      }
+      /* Actually write text */
       // As of now, only overwrite mode is implemented.
       this._accum.run(this.writeTextRaw, this);
     }
