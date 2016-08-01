@@ -419,7 +419,9 @@ this.Terminal = function() {
     }
   };
 
-  /* Actual terminal emulator. options specifies parameters of the terminal:
+  /* Actual terminal emulator.
+   * options specifies parameters of the terminal (all of which are mirrored
+   * by same-named attributes):
    * width      : The terminal should have the given (fixed) width; if not
    *              set, it will adapt to the container.
    * height     : Fixed height.
@@ -431,6 +433,11 @@ this.Terminal = function() {
    *              the current height, all lines "above" the display area are
    *              immediately discarded; when set to positive infinity,
    *              arbitrarily many lines are stored.
+   * oninput    : A callback called every time there is new input, unless
+   *              there is already data buffered. The only parameter is a
+   *              DOM Event Object with the type set to "input" and the
+   *              target to the Terminal instance; the return value is
+   *              ignored. Use the read() method to extract queued input.
    * Additional attributes:
    * node       : The DOM node the terminal is residing in.
    * size       : The actual size of the terminal as a [width, height] array
@@ -474,6 +481,7 @@ this.Terminal = function() {
     this.bell = options.bell;
     this.visualBell = options.visualBell;
     this.scrollback = options.scrollback;
+    this.oninput = null;
     this.node = null;
     this.savedAttrs = null;
     this.parser = new EscapeParser();
@@ -484,6 +492,7 @@ this.Terminal = function() {
     this._resize = this.resize.bind(this);
     this._pendingBells = [];
     this._pendingUpdate = [null, null];
+    this._queuedInput = [];
     this._initParser();
     this._initControls();
     this.reset(false);
@@ -1905,6 +1914,51 @@ this.Terminal = function() {
       /* Actually write text */
       // As of now, only overwrite mode is implemented.
       this._accum.run(this.writeTextRaw, this);
+    },
+
+    /* Queue some data as input to be read */
+    _queueInput: function(data) {
+      /* Convert strings to bytes */
+      if (typeof data == "string") {
+        if (! data) return;
+        /* HACK: Maybe use the TextEncoder API instead? */
+        var edata = unescape(encodeURI(data));
+        data = new Uint8Array(edata.length);
+        for (var i = 0; i < edata.length; i++)
+          data[i] = edata.charCodeAt(i);
+      }
+      /* Check whether an event should be fired */
+      var fire = (! this._queuedInput.length);
+      /* Queue data */
+      this._queuedInput.push(data);
+      /* Dispatch event */
+      if (fire && this.oninput) {
+        var evt = new Event("input");
+        evt.target = this;
+        this.oninput(evt);
+      }
+    },
+
+    /* Extract any queued input and return a coalesced ArrayBuffer */
+    read: function() {
+      /* Special-case empty read */
+      if (! this._queuedInput.length) return new ArrayBuffer(0);
+      /* Pop queue */
+      var queued = this._queuedInput;
+      this._queuedInput = [];
+      /* Coalesce data */
+      var len = 0;
+      queued.forEach(function(el) { len += el.length; });
+      var ret = new ArrayBuffer(len);
+      var view = new Uint8Array(ret);
+      var idx = 0;
+      queued.forEach(function(el) {
+        console.log(view, idx, el);
+        view.set(el, idx);
+        idx += el.length;
+      });
+      /* Return result */
+      return ret;
     }
   };
 
