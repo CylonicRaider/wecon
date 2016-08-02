@@ -1267,7 +1267,7 @@ this.Terminal = function() {
               if (attrs.region[0] != attrs.region[1] &&
                   pos[1] == attrs.region[1]) {
                 pos[1]--;
-                this.scroll(1);
+                this.scroll(1, attrs.region);
               } else if (pos[1] == this.size[1]) {
                 pos[1]--;
               }
@@ -1301,14 +1301,11 @@ this.Terminal = function() {
 
     /* Insert text at the given position (or the cursor position), shifting
      * the remainder of the line to the right
-     * Since this is inherently a line-based operation, no wrapping is
-     * performed.
      * Unless noDiscard is true, characters that would be outside the visible
-     * area of the terminal are discarded, with the very last character
-     * displayed in the last visible column.
+     * area of the terminal are discarded.
      * Unless noMove is true, the cursor is moved to the right by the length
      * of the text, up to the right border of the visible area (even if
-     * noDiscard is true).
+     * noDiscard is true); line wrapping may occur.
      * If text is a number, the amount of spaces as indicated by it is
      * inserted.
      */
@@ -1322,26 +1319,44 @@ this.Terminal = function() {
       var children = line.children;
       var cell = this.growCells(line, pos[0], true);
       var isNumber = (typeof text == "number");
+      /* Calculate output length */
       var tlm1 = (isNumber) ? text - 1 : text.length - 1;
+      if (noMove && ! noDiscard)
+        tlm1 = Math.min(tlm1, this.size[0] - pos[0] - 1);
       for (var i = 0; i <= tlm1; i++) {
         var ch = (isNumber) ? " " : text[i];
         /* Decode surrogate pairs */
         if (/[\uD800-\uDBFF]/.test(ch) && i < tlm1 &&
             /[\uDC00-\uDFFF]/.test(text[i + 1]))
           ch += text[++i];
-        /* Check if character should be replaced */
-        pos[0]++;
-        var replace = (pos[0] >= this.size[0] && ! noDiscard);
-        /* Insert character */
-        var nc;
-        if (replace) {
-          nc = children[this.size[0] - 1];
-        } else {
-          nc = makeNode("span", "cell");
+        /* Wrap line if necessary */
+        if (! noMove && pos[0] >= this.size[0]) {
+          if (! noDiscard)
+            this.eraseLine(false, true, [this.size[0], pos[1]]);
+          pos[0] = 0;
+          pos[1]++;
+          /* Scroll if necessary */
+          if (attrs.region) {
+            if (attrs.region[0] != attrs.region[1] &&
+                pos[1] == attrs.region[1]) {
+              pos[1]--;
+              this.scroll(1, attrs.region);
+            } else if (pos[1] == this.size[1]) {
+              pos[1]--;
+            }
+          } else if (pos[1] == this.size[1]) {
+            pos[1]--;
+          }
+          line = this.growLines(pos[1]);
+          cell = this.growCells(line, 0);
         }
+        /* Insert character */
+        var nc = makeNode("span", "cell");
         attrs(nc);
         nc.textContent = ch;
-        if (! replace) line.insertBefore(nc, cell);
+        line.insertBefore(nc, cell);
+        /* Advance position */
+        pos[0]++;
       }
       /* Truncate line if necessary */
       if (! noDiscard) {

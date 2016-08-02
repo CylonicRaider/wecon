@@ -28,22 +28,11 @@ h1 {
 window.addEventListener('load', function() {
   window.term = new Terminal({width: 80, height: 25, scrollback: 1000});
   term.mount(document.getElementById('terminal'));
-  term.setAttributes(15, 4);
-  term.placeCursor(40, 15);
-  term.eraseDisplay(true, false);
-  term.setAttributes(0, 7);
-  term.setScrollRegion(5, 20);
-  term.setAttributes(15, 1, Terminal.ATTR.ITALIC | Terminal.ATTR.REVERSE);
-  term.eraseDisplay(false, true);
-  term.placeCursor(68, null);
-  term.writeTextRaw("Hello World!");
-  term.setAttributes("rgb-5-5-5", "rgb-24-147-37", 0);
-  term.placeCursor(0, 5);
-  term.spliceLines(null, 5, 3);
-  term.setScrollRegion();
-  term.write("This is a write() test.\rThis should over-write()." +
-    "\x1b[38:5:255;48;2;0;0;255;1m\x1b[38:5:154:\x18" +
-    "\x1b[15;20H.\b\x1b[A^\b\x1b[2Bv\b\x1b[A\x1b[C>\033[3D<");
+  term.insertTextRaw("test", [0, 0]);
+  term.insertTextRaw("test", [0, 1]);
+  term.insertTextRaw("........................................" +
+                     "........................................" +
+                     "........................................", [0, 0]);
 });
     </script>
   </head>
