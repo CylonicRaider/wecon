@@ -551,6 +551,14 @@ this.Terminal = function() {
     /* crAtLF is NYI */
   };
 
+  /* Mapping from escape sequence parameter strings to mode names as used
+   * by Terminal */
+  Terminal.MODE_CODES = {
+    "3" : "displayControls",
+    "4" : "insert",
+    "20": "crAtLF"
+  };
+
   /* Try to parse a (non-private) parameter string according to ECMA-48 */
   Terminal.parseParamString = function(ps) {
     return ps.split(";").map(function(el) {
@@ -691,7 +699,8 @@ this.Terminal = function() {
       ip("g", function(p) {
         if (g == 0) this.editTabStops(this.curPos[0], null);
         if (g == 3) this.editTabStops(this.getTabStops(), null); }, true);
-      /* h (SM - SET MODE) and l (RM - RESET MODE) are NYI. */
+      ih("h", function(p) { this.setMode(p, true); });
+      ih("l", function(p) { this.setMode(p, false); });
       ia("m", this._handleSGR); /* Outlined because of complexity. */
       ih("r", function(t, b) { this.setScrollRegion(t - 1, b - 1);
                                this.placeCursor(0, 0); });
@@ -1745,6 +1754,13 @@ this.Terminal = function() {
       } else {
         this.bell.play();
       }
+    },
+
+    /* Enable or disable a mode as given by a code (or the name) depending on
+     * value
+     * A true value enabled the mode, a false one disables it. */
+    setMode: function(code, value) {
+      this.modes[Terminal.MODE_CODES[code] || code] = value;
     },
 
     /* Install a handler for a CSI sequence
