@@ -1376,7 +1376,7 @@ this.Terminal = function() {
       this._cellRange(line, pos[0],
                       pos[0] + remove).forEach(line.removeChild.bind(line));
       /* Add cells */
-      this.insertTextRaw(insert, pos, noDiscard);
+      this.insertTextRaw(insert, pos, true, noDiscard);
     },
 
     /* Raw line manipulation
