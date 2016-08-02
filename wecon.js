@@ -10,6 +10,16 @@ this.Terminal = function() {
     return ret;
   }
 
+  /* Shallowly duplicate an object */
+  function cloneObject(base) {
+    var ret = {};
+    for (var k in base) {
+      if (! base.hasOwnProperty(k)) continue;
+      ret[k] = base[k];
+    }
+    return ret;
+  }
+
   /* Passive UTF-8 decoder */
   function UTF8Dec() {
     this._buffered = [];
@@ -465,6 +475,8 @@ this.Terminal = function() {
    *              explicit scrolling region. The scrollback buffer is filled
    *              by lines scrolling off the top only if there is no
    *              scrolling region or the top is at row 0.
+   * modes      : An object of mode flags. See Terminal.DEFAULT_MODES for
+   *              default assignments.
    * savedAttrs : The last attribute save as recorded by saveAttributes()
    *              (unless prevented).
    * parser     : The EscapeParser instance responsible for parsing escape
@@ -532,6 +544,13 @@ this.Terminal = function() {
     512: "dblunderline"
   };
 
+  /* Default mode flags */
+  Terminal.DEFAULT_MODES = {
+    displayControls: false, /* Display certain control characters */
+    insert         : false, /* Insert characters instead of overwriting */
+    /* crAtLF is NYI */
+  };
+
   /* Try to parse a (non-private) parameter string according to ECMA-48 */
   Terminal.parseParamString = function(ps) {
     return ps.split(";").map(function(el) {
@@ -561,14 +580,11 @@ this.Terminal = function() {
       /* Set up parser */
       var first = this.parser.first();
       first.clear();
-      first.on("\x07", callAndReturn(self.beep, self));
-      first.on("\b", callAndReturn(self.moveCursor, self, [-1, 0]));
-      first.on("\t", callAndReturn(self.tabulate, self));
-      first.on("\n\v\f\x84", callAndReturn(self.newLine, self,
-                                           [false, true]));
-      first.on("\r", callAndReturn(self.newLine, self,
-                                   [true, false]));
-      var esc = first.at("\x1b");
+      first.on("\0-\x1f\x80-\x9f", function(ch) {
+        self._accum.addCall(self._handleCC, self, [ch]);
+        return first;
+      });
+      var esc = first.on("\x1b");
       esc.on("7", callAndReturn(self.saveAttributes, self));
       esc.on("8", callAndReturn(self.restoreAttributes, self));
       esc.at("#").on("@-~"); // Ignore.
@@ -578,16 +594,6 @@ this.Terminal = function() {
       });
       esc.on("`-~"); // Ignore.
       esc.on("c", callAndReturn(self.reset, self));
-      first.on("\x85", callAndReturn(self.newLine, self,
-                                     [true, true]));
-      first.on("\x88", function() {
-        this._accum.addCall(function() {
-          this.editTabStops(null, this.curPos[0]);
-        }, this);
-        return first;
-      });
-      first.on("\x8d", callAndReturn(self.newLine, self,
-                                     [false, true, true]));
       var csi = first.on("\x9b", function() {
         this.csi = true;
         this.params = "";
@@ -614,11 +620,10 @@ this.Terminal = function() {
       csiI.on(" -/", csiI);
       csiI.on("@-~", csiF);
       this.parser.fallback = function(ch) {
-        if (/[\x18\x1a]/.test(ch)) {
+        if (/[\x18\x1a]/.test(ch) && ! self.modes.displayControls) {
           delete this.csi;
           delete this.params;
           delete this.func;
-          return first;
         } else {
           self._accum.addText(ch);
         }
@@ -708,6 +713,7 @@ this.Terminal = function() {
         this.curAttrs = 0;
         this.tabStops = {};
         this.scrollReg = null;
+        this.modes = cloneObject(Terminal.DEFAULT_MODES);
         this._offscreenLines = 0;
         if (this.node) {
           var cn = this._contentNode();
@@ -1776,6 +1782,42 @@ this.Terminal = function() {
       return true;
     },
 
+    /* Handle single-character C0 and C1 controls */
+    _handleCC: function(ch) {
+      if (/[\x07\b\t\v\x7f]/.test(ch) &&
+          ! this.modes.displayControls) {
+        switch (ch) {
+          case "\x07": this.beep(); break;
+          case "\b": this.moveCursor(-1, 0); break;
+          case "\t": this.tabulate(); break;
+          case "\v": this.newLine(false, true); break;
+        }
+      } else {
+        switch (ch) {
+          case "\0":
+            /* NOP */
+            break;
+          case "\n": case "\f": case "\x84":
+            this.newLine(false, true);
+            break;
+          case "\r":
+            this.newLine(true, false);
+            break;
+          case "\x85":
+            this.newLine(true, true);
+            break;
+          case "\x88":
+            this.editTabStops(null, this.curPos[0]);
+            break;
+          case "\x8d":
+            this.newLine(false, true, true);
+            break;
+          default:
+            this._accum.addText(ch);
+        }
+      }
+    },
+
     /* Process a SGR (Select Graphic Rendition) escape sequence
      * Outlined into a separate method because of the potentially complex
      * syntax.
@@ -1873,6 +1915,15 @@ this.Terminal = function() {
       }.bind(this));
     },
 
+    /* Handle "bare" text WRT the current modes */
+    _handleText: function(data) {
+      if (this.modes.insert) {
+        this.insertTextRaw(data);
+      } else {
+        this.writeTextRaw(data);
+      }
+    },
+
     /* Feed the given amount of Unicode codepoints to display or processing
      * This is what you want to use for displaying already-decoded text. */
     write: function(text) {
@@ -1912,8 +1963,7 @@ this.Terminal = function() {
         this._pendingUpdate[1] = null;
       }
       /* Actually write text */
-      // As of now, only overwrite mode is implemented.
-      this._accum.run(this.writeTextRaw, this);
+      this._accum.run(this._handleText, this);
     },
 
     /* Queue some data as input to be read */
