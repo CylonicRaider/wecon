@@ -28,11 +28,10 @@ h1 {
 window.addEventListener('load', function() {
   window.term = new Terminal({width: 80, height: 25, scrollback: 1000});
   term.mount(document.getElementById('terminal'));
-  term.insertTextRaw("test", [0, 0]);
-  term.insertTextRaw("test", [0, 1]);
-  term.insertTextRaw("........................................" +
-                     "........................................" +
-                     "........................................", [0, 0]);
+  term.write("\x9b4htest\x85test\r\x8d" +
+             "........................................" +
+             "........................................" +
+             "........................................");
 });
     </script>
   </head>

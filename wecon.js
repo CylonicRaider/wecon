@@ -342,9 +342,13 @@ this.Terminal = function() {
           var fromCP = UTF8Dec.prototype._fromCodePoint;
           var toCP = UTF8Dec.prototype._toCodePoint;
           var from = toCP(groupStart), to = toCP(ch);
-          var step = (from <= to) ? 1 : -1;
-          for (var i = from; i != to; i += step) {
-            chars.push(fromCP(i));
+          if (from > to) {
+            var temp = from;
+            from = to;
+            to = temp;
+          }
+          for (var j = from + 1; j < to; j++) {
+            chars.push(fromCP(j));
           }
           /* Reset group mode */
           groupStart = null;
@@ -588,7 +592,7 @@ this.Terminal = function() {
       /* Set up parser */
       var first = this.parser.first();
       first.clear();
-      first.on("\0-\x1f\x80-\x9f", function(ch) {
+      first.on("\0-\x1f\x7f-\x9f", function(ch) {
         self._accum.addCall(self._handleCC, self, [ch]);
         return first;
       });
@@ -2034,7 +2038,6 @@ this.Terminal = function() {
       var view = new Uint8Array(ret);
       var idx = 0;
       queued.forEach(function(el) {
-        console.log(view, idx, el);
         view.set(el, idx);
         idx += el.length;
       });
