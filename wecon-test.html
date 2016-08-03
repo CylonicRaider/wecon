@@ -31,7 +31,9 @@ window.addEventListener('load', function() {
   term.write("\x9b4htest\x85test\r\x8d" +
              "........................................" +
              "........................................" +
-             "........................................");
+             "........................................\033[?6n");
+  term.flush();
+  console.log(new Uint8Array(term.read()));
 });
     </script>
   </head>

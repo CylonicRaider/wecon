@@ -670,6 +670,11 @@ this.Terminal = function() {
           }.bind(this));
         });
       }.bind(this);
+      var is = function(code, func) {
+        this.addCSI(code, function(params) {
+          func.call(this, params.params);
+        });
+      }.bind(this);
       /* Actual handlers */
       ih("@", function(n) { this.spliceCharacters(null, 0, n || 1); });
       ih("A", function(n) { this.navigateCursor(0, -(n || 1)); });
@@ -692,9 +697,9 @@ this.Terminal = function() {
                                            (p == 1 || p == 2)); }, true);
       ih("L", function(n) { this.spliceLines(null, 0, n || 1); });
       ih("M", function(n) { this.spliceLines(null, n || 1, 0); });
-      /* N (EF - ERASE IN FIELD) and O (EA - ERASE IN AREA) are N/I. */
+      /* N (EF - ERASE IN FIELD) and O (EA - ERASE IN AREA) are N/I */
       ih("P", function(n) { this.spliceCharacters(null, n || 1, 0); });
-      /* Other not implemented functions are henceforth not mentioned. */
+      /* Other not implemented functions are henceforth not mentioned */
       ih("X", function(n) { this.spliceCharacters(null, n || 1, n || 1); });
       ih("a", function(n) { this.moveCursor(n || 1, 0); });
       ih("d", function(n) { this.moveCursor(null, n || 1); });
@@ -705,12 +710,14 @@ this.Terminal = function() {
         if (g == 3) this.editTabStops(this.getTabStops(), null); }, true);
       ih("h", function(p) { this.setMode(p, true); });
       ih("l", function(p) { this.setMode(p, false); });
-      ia("m", this._handleSGR); /* Outlined because of complexity. */
+      ia("m", this._handleSGR); /* Outlined because of complexity */
+      is("n", this._handleDSR); /* Outlined because of complexita as well */
       ih("r", function(t, b) { this.setScrollRegion(t - 1, b - 1);
                                this.placeCursor(0, 0); });
       ih("s", function() { this.saveAttributes(); });
       ih("u", function() { this.restoreAttributes(); });
       ih("`", function(n) { this.moveCursor(n || 1, null); });
+      is("?n", this._handleDSR); /* Also reply to private-mode DSR's. */
     },
 
     /* Reset the entire terminal or the current screen */
@@ -1809,8 +1816,8 @@ this.Terminal = function() {
       params.isPrivate = params.paramsPrivate || params.funcPrivate;
       if (! params.paramsPrivate)
         params.paramArray = Terminal.parseParamString(params.params);
-      params.effFunc = ((params.paramsPrivate) ? params[0] : "") +
-                       params.func;
+      params.effFunc = ((params.paramsPrivate) ? params.params[0] : "") +
+                        params.func;
       var handler = this.csiHandlers[params.effFunc];
       if (! handler) return false;
       if (handler.call(this, params) === false) return false;
@@ -1948,6 +1955,22 @@ this.Terminal = function() {
         seqLen = 0;
         seqBuf = null;
       }.bind(this));
+    },
+
+    /* Process Device Status Report escape sequence */
+    _handleDSR: function(param) {
+      if (param == "5") {
+        /* Actual Device Status Report; replying with "OK" */
+        this._queueInput("\x1b[0n");
+      } else if (param == "6") {
+        /* Cursor Position Report */
+        this._queueInput("\x1b[" + (this.curPos[1] + 1) + ";" +
+                         (this.curPos[0] + 1) + "R");
+      } else if (param == "?6") {
+        /* Cursor Position Report with private-mode modifier */
+        this._queueInput("\x1b[?" + (this.curPos[1] + 1) + ";" +
+                         (this.curPos[0] + 1) + "R");
+      }
     },
 
     /* Handle "bare" text WRT the current modes */
