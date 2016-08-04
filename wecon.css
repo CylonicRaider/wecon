@@ -16,6 +16,11 @@
   color: white;
 }
 
+/* Focus highlight */
+.wecon:focus pre {
+  outline: 1px dotted #404040;
+}
+
 /* Content area */
 .wecon pre {
   display: none;

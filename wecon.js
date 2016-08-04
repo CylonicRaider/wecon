@@ -505,6 +505,7 @@ this.Terminal = function() {
     this._currentScreen = 0;
     this._decoder = new UTF8Dec();
     this._accum = new TextAccumulator();
+    this._keydown = this.keydown.bind(this);
     this._resize = this.resize.bind(this);
     this._pendingBells = [];
     this._pendingUpdate = [null, null];
@@ -760,6 +761,7 @@ this.Terminal = function() {
       }
       this.node = node;
       node.classList.add("wecon");
+      node.addEventListener("keydown", this._keydown);
       window.addEventListener("resize", this._resize);
       this._oldSize = null;
       this.selectScreen(this._currentScreen);
@@ -774,6 +776,7 @@ this.Terminal = function() {
       if (this.node && ! raw) {
         this.node.classList.remove("wecon");
         this.node.innerHTML = "";
+        this.node.removeEventListener("keydown", this._keydown);
         window.removeEventListener("resize", this._resize);
       }
       this._oldSize = null;
@@ -783,6 +786,40 @@ this.Terminal = function() {
     /* Throw an error if the terminal is not mounted */
     checkMounted: function() {
       if (! this.node) throw new Error("Terminal not mounted");
+    },
+
+    /* React to a key press event */
+    keydown: function(event) {
+      /* Warn on unsupported platforms */
+      // There is no reliable way to determine which key was pressed. *arrgh*
+      if (typeof event.key != "string") {
+        console.warn("Swallowing key event:", event);
+        return;
+      }
+      /* Allow character input */
+      if (/^(.|[\uD800-\uDBFF][\uDC00-\uDFFF])$/.test(event.key)) {
+        if (event.ctrlKey) {
+          /* Handle Ctrl+... */
+          // Since only some ASCII characters are handled like that, we don't
+          // need fancy Unicode codepoints.
+          var ch = event.key.charCodeAt(0);
+          // Since Shift is not pressed, ch is a lowercase character, but the
+          // calculation requires uppercase letters. Ctrl-Shift-... must not
+          // be handled, on the other hand.
+          if (/[a-zA-Z]/.test(event.key)) ch ^= 0x20;
+          if (ch >= 0x40 && ch <= 0x5F) {
+            this._queueInput(String.fromCharCode(ch - 0x40));
+          }
+        } else if (event.altKey || event.metaKey) {
+          /* NOP */
+        } else {
+          this._queueInput(event.key);
+        }
+        /* Grab event */
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
     },
 
     /* Update the sizes of the content area and the container */

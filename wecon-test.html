@@ -32,13 +32,14 @@ window.addEventListener('load', function() {
              "........................................" +
              "........................................" +
              "........................................\033[?6n");
-  term.flush();
-  console.log(new Uint8Array(term.read()));
+  term.oninput = function() {
+    console.log(new Uint8Array(term.read()));
+  };
 });
     </script>
   </head>
   <body>
 <h1>WeCon test file</h1>
-<div id="terminal"></div>
+<div id="terminal" tabindex="0"></div>
   </body>
 </html>
