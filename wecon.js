@@ -551,14 +551,15 @@ this.Terminal = function() {
      64: "reverse",
     128: "hidden",
     256: "strike",
-    512: "dblunderline"
+    512: "dblunderline",
   };
 
   /* Default mode flags */
   Terminal.DEFAULT_MODES = {
     displayControls: false, /* Display certain control characters */
     insert         : false, /* Insert characters instead of overwriting */
-    lfAtCR         : false  /* Follow a CR typed by the user with a LF */
+    lfAtCR         : false, /* Follow a CR typed by the user with a LF */
+    autowrap       : true,  /* Automatically wrap lines when overflowing */
   };
 
   /* Mapping from escape sequence parameter strings to mode names as used
@@ -566,7 +567,8 @@ this.Terminal = function() {
   Terminal.MODE_CODES = {
     "3" : "displayControls",
     "4" : "insert",
-    "20": "lfAtCR"
+    "20": "lfAtCR",
+    "?7": "autowrap",
   };
 
   /* Try to parse a (non-private) parameter string according to ECMA-48 */
@@ -726,6 +728,8 @@ this.Terminal = function() {
       ih("s", function() { this.saveAttributes(); });
       ih("u", function() { this.restoreAttributes(); });
       ih("`", function(n) { this.moveCursor(n || 1, null); });
+      is("?h", function(p) { this.setMode(p, true); });
+      is("?l", function(p) { this.setMode(p, false); });
       is("?n", this._handleDSR); /* Also reply to private-mode DSR's. */
     },
 
@@ -1294,7 +1298,8 @@ this.Terminal = function() {
      * If base is null, the terminal's current attributes are used.
      * If base is a DOM node, its data-attrs attribute is applied.
      * If amend is true, missing (i.e. === undefined) attribute values are
-     * amended from this.curFg, this.curBg, this.curAttrs, respectively.
+     * amended from this.curFg, this.curBg, this.curAttrs, this.modes,
+     * respectively.
      */
     _prepareAttrs: function(base, amend) {
       function parseRGB(clr) {
@@ -1304,9 +1309,11 @@ this.Terminal = function() {
         return "rgb(" + m[1] + "," + m[2] + "," + m[3] + ")";
       }
       /* Resolve attributes */
-      var attrs = "", styleFG = "", styleBG = "", region = null;
+      var attrs = "", styleFG = "", styleBG = "";
+      var region = null, modes = null;
       if (base == null || typeof base != "object")
-        base = {attrs: this.curAttrs, fg: this.curFg, bg: this.curBg};
+        base = {attrs: this.curAttrs, fg: this.curFg, bg: this.curBg,
+                modes: cloneObject(this.modes)};
       if (typeof base == "object" && base.nodeType !== undefined) {
         attrs = base.getAttribute("data-attrs") || "";
         var m = RGB_FG.exec(attrs);
@@ -1319,6 +1326,7 @@ this.Terminal = function() {
           if (base.fg === undefined) base.fg = this.curFg;
           if (base.bg === undefined) base.bg = this.curBg;
           if (base.attrs === undefined) base.attrs = this.curAttrs;
+          if (base.modes === undefined) base.modes = cloneObject(this.modes);
         }
         /* Scan attributes */
         for (var i = 1; i <= Terminal.ATTR._MAX; i <<= 1) {
@@ -1342,8 +1350,19 @@ this.Terminal = function() {
         }
         /* Strip leading space */
         attrs = attrs.replace(/^ /, "");
-        /* Appply scrolling region */
+        /* Appply scrolling region / modes */
         if (base.region) region = base.region;
+        /* Merge modes */
+        if (base.modes) {
+          modes = cloneObject(base.modes);
+          for (var k in this.modes) {
+            if (! this.modes.hasOwnProperty(k) || modes.hasOwnProperty(k))
+              continue;
+            modes[k] = this.modes[k];
+          }
+        } else {
+          modes = cloneObject(this.modes);
+        }
       }
       /* Resolve scrolling region */
       if (! region && this.scrollReg)
@@ -1363,7 +1382,13 @@ this.Terminal = function() {
           node.style.background = "";
         };
       }
+      /* Amend further attributes */
       ret.region = region;
+      ret.modes = modes;
+      if (amend) {
+        base.region = region;
+        base.modes = modes;
+      }
       return ret;
     },
 
@@ -1399,22 +1424,29 @@ this.Terminal = function() {
             ch += text[++i];
           /* Perform line wrapping; advance cell */
           if (pos[0] == this.size[0]) {
-            pos[0] = 0;
-            pos[1]++;
-            /* Respect scrolling regions */
-            if (attrs.region) {
-              if (attrs.region[0] != attrs.region[1] &&
-                  pos[1] == attrs.region[1]) {
-                pos[1]--;
-                this.scroll(1, attrs.region);
-              } else if (pos[1] == this.size[1]) {
-                pos[1]--;
+            if (attrs.modes.autowrap) {
+              pos[0] = 0;
+              pos[1]++;
+              /* Respect scrolling regions */
+              if (attrs.region) {
+                if (attrs.region[0] != attrs.region[1] &&
+                    pos[1] == attrs.region[1]) {
+                  pos[1]--;
+                  this.scroll(1, attrs.region);
+                } else if (pos[1] == this.size[1]) {
+                  pos[1]--;
+                }
               }
+              cl = this.growLines(pos[1]);
+              if (pos[1] == this.size[1]) pos[1]--;
+              /* Select first cell */
+              cc = this.growCells(cl, 0);
+            } else {
+              /* No auto-wrapping... */
+              pos[0]--;
+              cl = this.growLines(pos[1]);
+              cc = this.growCells(cl, pos[0]);
             }
-            cl = this.growLines(pos[1]);
-            if (pos[1] == this.size[1]) pos[1]--;
-            /* Select first cell */
-            cc = this.growCells(cl, 0);
           } else if (! cl) {
             /* First loop run -- select correct line and cell */
             cl = this.growLines(pos[1]);
@@ -1470,24 +1502,30 @@ this.Terminal = function() {
           ch += text[++i];
         /* Wrap line if necessary */
         if (! noMove && pos[0] >= this.size[0]) {
-          if (! noDiscard)
-            this.eraseLine(false, true, [this.size[0], pos[1]]);
-          pos[0] = 0;
-          pos[1]++;
-          /* Scroll if necessary */
-          if (attrs.region) {
-            if (attrs.region[0] != attrs.region[1] &&
-                pos[1] == attrs.region[1]) {
-              pos[1]--;
-              this.scroll(1, attrs.region);
+          if (attrs.modes.autowrap) {
+            if (! noDiscard)
+              this.eraseLine(false, true, [this.size[0], pos[1]]);
+            pos[0] = 0;
+            pos[1]++;
+            /* Scroll if necessary */
+            if (attrs.region) {
+              if (attrs.region[0] != attrs.region[1] &&
+                  pos[1] == attrs.region[1]) {
+                pos[1]--;
+                this.scroll(1, attrs.region);
+              } else if (pos[1] == this.size[1]) {
+                pos[1]--;
+              }
             } else if (pos[1] == this.size[1]) {
               pos[1]--;
             }
-          } else if (pos[1] == this.size[1]) {
-            pos[1]--;
+            line = this.growLines(pos[1]);
+            cell = this.growCells(line, 0);
+          } else {
+            /* No auto-wrapping... */
+            pos[0]--;
+            cell = this.growCells(line, pos[0]);
           }
-          line = this.growLines(pos[1]);
-          cell = this.growCells(line, 0);
         }
         /* Insert character */
         var nc = makeNode("span", "cell");
