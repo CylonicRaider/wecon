@@ -558,7 +558,7 @@ this.Terminal = function() {
   Terminal.DEFAULT_MODES = {
     displayControls: false, /* Display certain control characters */
     insert         : false, /* Insert characters instead of overwriting */
-    /* crAtLF is NYI */
+    lfAtCR         : false  /* Follow a CR typed by the user with a LF */
   };
 
   /* Mapping from escape sequence parameter strings to mode names as used
@@ -566,7 +566,7 @@ this.Terminal = function() {
   Terminal.MODE_CODES = {
     "3" : "displayControls",
     "4" : "insert",
-    "20": "crAtLF"
+    "20": "lfAtCR"
   };
 
   /* Try to parse a (non-private) parameter string according to ECMA-48 */
@@ -893,6 +893,8 @@ this.Terminal = function() {
           }
         }
       }
+      /* Honor lfAtCR mode */
+      if (this.modes.lfAtCR && res == "\r") res += "\n";
       /* Send result to outside */
       if (res) {
         this._queueInput(res);
