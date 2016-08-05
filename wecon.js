@@ -799,7 +799,6 @@ this.Terminal = function() {
         console.warn("Swallowing key event:", event);
         return;
       }
-      console.log(event);
       var res = null;
       /* Character input */
       if (SINGLE_CODEPOINT.test(event.key)) {
