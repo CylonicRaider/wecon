@@ -4,7 +4,7 @@
 /* Hide implementation details in closure */
 this.Terminal = function() {
   /* Regex for a string containing a single Unicode codepoint */
-  var SINGLE_CODEPOINT = /^(.|[\uD800-\uDBFF][\uDC00-\uDFFF])$/;
+  var SINGLE_CODEPOINT = /^([^]|[\uD800-\uDBFF][\uDC00-\uDFFF])$/;
 
   /* Convenience function to create a DOM node */
   function makeNode(tagName, className) {
@@ -799,7 +799,7 @@ this.Terminal = function() {
         console.warn("Swallowing key event:", event);
         return;
       }
-      var res = null;
+      var res = null, shiftMask = true;
       /* Character input */
       if (SINGLE_CODEPOINT.test(event.key)) {
         if (event.ctrlKey && ! event.metaKey) {
@@ -858,6 +858,11 @@ this.Terminal = function() {
         }
         // HACK to compensate for Shift-Tab not identified.
         if (event.code == "Tab") res = "\t";
+        /* Special-case Shift-Tab and Shift-Return */
+        if (/[\t\r]/.test(res) && event.shiftKey) {
+          res = (res == "\t") ? "\x1b[Z" : "\x1bOM";
+          shiftMask = false;
+        }
       }
       /* Process modifiers */
       if (SINGLE_CODEPOINT.test(res)) {
@@ -867,8 +872,8 @@ this.Terminal = function() {
         /* Modifier bitmask */
         var modMask = ((!! event.metaKey) << 4) +
                       ((!! event.altKey) << 3) +
-                      ((!! event.shiftKey) << 2) +
-                      (!! event.shiftKey) + 1;
+                      (((!! event.shiftKey) && shiftMask) << 2) +
+                      (!! event.ctrlKey) + 1;
         if (modMask != 1) {
           /* Transform SS3 into CSI 1 */
           res = res.replace(/O/, "[1");
