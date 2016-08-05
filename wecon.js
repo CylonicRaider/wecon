@@ -838,6 +838,7 @@ this.Terminal = function() {
           case "Tab"       : res = "\t"; break;
           case "Escape"    : res = "\x1b"; break;
           case "Enter"     : res = "\r"; break;
+          case "Backspace" : res = "\x7f"; break;
           case "F1"        : res = "\x1bOP"; break;
           case "F2"        : res = "\x1bOQ"; break;
           case "F3"        : res = "\x1bOR"; break;
