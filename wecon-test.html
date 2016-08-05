@@ -28,12 +28,8 @@ h1 {
 window.addEventListener('load', function() {
   window.term = new Terminal({width: 80, height: 25, scrollback: 1000});
   term.mount(document.getElementById('terminal'));
-  term.write("\x9b4htest\x85test\r\x8d" +
-             "........................................" +
-             "........................................" +
-             "........................................\033[?6n");
   term.oninput = function() {
-    console.log(new Uint8Array(term.read()));
+    term.writeBin(term.read());
   };
 });
     </script>

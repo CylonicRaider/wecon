@@ -116,6 +116,8 @@ this.Terminal = function() {
     /* Decode the input or part of it, possibly buffering a codepoint */
     decode: function(input) {
       var ret = "", i;
+      /* Convert AtrrayBuffers to Uint8Arrays */
+      if (input instanceof ArrayBuffer) input = new Uint8Array(input);
       /* Take care of buffered codepoint(s) */
       if (this._buffered.length) {
         /* Scan for continuation bytes and buffer them */
@@ -692,7 +694,8 @@ this.Terminal = function() {
       ih("F", function(n) { this.navigateCursor(0, -(n || 1));
                             this.moveCursor(0, null); });
       ih("G", function(n) { this.moveCursor(n - 1, null); });
-      ih("H", function(y, x) { this.placeCursor(x - 1, y - 1); });
+      ih("H", function(y, x) {
+        this.placeCursor((x || 1) - 1, (y || 1) - 1); });
       ih("I", function(n) { this.tabulate(1); });
       ip("J", function(p) { if (p == null) p = 0;
                             this.eraseDisplay((p == 0 || p == 2),
@@ -717,7 +720,7 @@ this.Terminal = function() {
       ih("h", function(p) { this.setMode(p, true); });
       ih("l", function(p) { this.setMode(p, false); });
       ia("m", this._handleSGR); /* Outlined because of complexity */
-      is("n", this._handleDSR); /* Outlined because of complexita as well */
+      is("n", this._handleDSR); /* Outlined because of complexity as well */
       ih("r", function(t, b) { this.setScrollRegion(t - 1, b - 1);
                                this.placeCursor(0, 0); });
       ih("s", function() { this.saveAttributes(); });
