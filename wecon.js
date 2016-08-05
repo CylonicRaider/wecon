@@ -3,6 +3,9 @@
 
 /* Hide implementation details in closure */
 this.Terminal = function() {
+  /* Regex for a string containing a single Unicode codepoint */
+  var SINGLE_CODEPOINT = /^(.|[\uD800-\uDBFF][\uDC00-\uDFFF])$/;
+
   /* Convenience function to create a DOM node */
   function makeNode(tagName, className) {
     var ret = document.createElement(tagName);
@@ -796,29 +799,96 @@ this.Terminal = function() {
         console.warn("Swallowing key event:", event);
         return;
       }
-      /* Allow character input */
-      if (/^(.|[\uD800-\uDBFF][\uDC00-\uDFFF])$/.test(event.key)) {
-        if (event.ctrlKey) {
+      console.log(event);
+      var res = null;
+      /* Character input */
+      if (SINGLE_CODEPOINT.test(event.key)) {
+        if (event.ctrlKey && ! event.metaKey) {
           /* Handle Ctrl+... */
           // Since only some ASCII characters are handled like that, we don't
           // need fancy Unicode codepoints.
           var ch = event.key.charCodeAt(0);
-          // Since Shift is not pressed, ch is a lowercase character, but the
-          // calculation requires uppercase letters. Ctrl-Shift-... must not
-          // be handled, on the other hand.
-          if (/[a-zA-Z]/.test(event.key)) ch ^= 0x20;
-          if (ch >= 0x40 && ch <= 0x5F) {
-            this._queueInput(String.fromCharCode(ch - 0x40));
+          // Shift does not matter. Theoretically, it should also not matter
+          // for special characters, but Ctrl-2 is meaningless when there
+          // Shift-2 isn't "@".
+          if (/[a-z]/.test(event.key)) ch ^= 0x20;
+          if (ch == 0x20) {
+            // Ctrl-Space. Don't ask me why.
+            res = "\0";
+          } else if (ch >= 0x40 && ch <= 0x5F) {
+            res = String.fromCharCode(ch - 0x40);
+          } else {
+            res = event.key;
           }
-        } else if (event.altKey || event.metaKey) {
-          /* NOP */
+        } else if (event.metaKey) {
+          /* Not defined; allow browser/OS to handle that */
         } else {
-          this._queueInput(event.key);
+          res = event.key;
         }
+      } else {
+        /* Function keys */
+        // And now welcome to the Marvellous Diverse Historically-Grown Lands
+        // of Function Keys et alii!
+        switch (event.key) {
+          case "Space"     : res = " "; break;
+          case "Tab"       : res = "\t"; break;
+          case "Escape"    : res = "\x1b"; break;
+          case "Enter"     : res = "\r"; break;
+          case "F1"        : res = "\x1bOP"; break;
+          case "F2"        : res = "\x1bOQ"; break;
+          case "F3"        : res = "\x1bOR"; break;
+          case "F4"        : res = "\x1bOS"; break;
+          case "F5"        : res = "\x1b[15~"; break;
+          case "F6"        : res = "\x1b[17~"; break;
+          case "F7"        : res = "\x1b[18~"; break;
+          case "F8"        : res = "\x1b[19~"; break;
+          case "F9"        : res = "\x1b[20~"; break;
+          case "F10"       : res = "\x1b[21~"; break;
+          case "F11"       : res = "\x1b[23~"; break;
+          case "F11"       : res = "\x1b[24~"; break;
+          case "Insert"    : res = "\x1b[2~"; break;
+          case "Delete"    : res = "\x1b[2~"; break;
+          case "PageUp"    : res = "\x1b[2~"; break;
+          case "PageDown"  : res = "\x1b[2~"; break;
+          case "Home"      : res = "\x1b[H"; break;
+          case "End"       : res = "\x1b[F"; break;
+          case "ArrowUp"   : res = "\x1b[A"; break;
+          case "ArrowDown" : res = "\x1b[B"; break;
+          case "ArrowRight": res = "\x1b[C"; break;
+          case "ArrowLeft" : res = "\x1b[D"; break;
+        }
+        // HACK to compensate for Shift-Tab not identified.
+        if (event.code == "Tab") res = "\t";
+      }
+      /* Process modifiers */
+      if (SINGLE_CODEPOINT.test(res)) {
+        /* Only Alt-Sends-Escape :( */
+        if (event.altKey) res = "\x1b" + res;
+      } else if (res) {
+        /* Modifier bitmask */
+        var modMask = ((!! event.metaKey) << 4) +
+                      ((!! event.altKey) << 3) +
+                      ((!! event.shiftKey) << 2) +
+                      (!! event.shiftKey) + 1;
+        if (modMask != 1) {
+          /* Transform SS3 into CSI 1 */
+          res = res.replace(/O/, "[1");
+          /* Add modifiers */
+          if (res.length == 3) {
+            res = res.substring(0, 2) + modMask + res.substring(2);
+          } else {
+            var l = res.length;
+            res = res.substring(0, l - 1) + ";" + modMask +
+                  res.substring(l - 1);
+          }
+        }
+      }
+      /* Send result to outside */
+      if (res) {
+        this._queueInput(res);
         /* Grab event */
         event.preventDefault();
         event.stopPropagation();
-        return;
       }
     },
 
