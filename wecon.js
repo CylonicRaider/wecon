@@ -603,7 +603,9 @@ this.Terminal = function() {
       var esc = first.on("\x1b");
       esc.on("7", callAndReturn(self.saveAttributes, self));
       esc.on("8", callAndReturn(self.restoreAttributes, self));
-      esc.at("#").on("@-~"); // Ignore.
+      /* HACK: Ignore any character after ECMA-35 character set
+       *      designators. */
+      esc.on(" !\"#%&()*+./-", null, function() { return first; });
       esc.on("@-_", function(ch) {
         var cc = ch.charCodeAt(0) + 64;
         return first.successors[String.fromCharCode(cc)] || null;
