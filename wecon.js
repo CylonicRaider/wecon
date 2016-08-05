@@ -559,6 +559,8 @@ this.Terminal = function() {
     displayControls: false, /* Display certain control characters */
     insert         : false, /* Insert characters instead of overwriting */
     lfAtCR         : false, /* Follow a CR typed by the user with a LF */
+    wideTerm       : false, /* 132-column mode. No effect. */
+    origin         : false, /* Origin mode: Home at scrolling region */
     autowrap       : true,  /* Automatically wrap lines when overflowing */
   };
 
@@ -568,6 +570,8 @@ this.Terminal = function() {
     "3" : "displayControls",
     "4" : "insert",
     "20": "lfAtCR",
+    "?3": "wideTerm",
+    "?6": "origin",
     "?7": "autowrap",
   };
 
@@ -1240,13 +1244,22 @@ this.Terminal = function() {
      * The position is clamped to fit into the window. */
     placeCursor: function(x, y) {
       var p = this._resolvePosition([x, y]);
+      if (this.modes.origin && this.scrollReg) {
+        p[1] += this.scrollReg[0];
+        if (p[1] >= this.scrollReg[1]) p[1] = this.scrollReg[1] - 1;
+      }
       this._placeCursor(p[0], p[1]);
     },
 
     /* Move the cursor relatively to its current position */
     moveCursor: function(dx, dy) {
-      this.placeCursor(this.curPos[0] + (dx || 0),
-                       this.curPos[1] + (dy || 0));
+      var p = this._resolvePosition(this.curPos[0] + (dx || 0),
+                                    this.curPos[1] + (dy || 0));
+      if (this.modes.origin && this.scrollReg) {
+        p[1] += this.scrollReg[0];
+        if (p[1] >= this.scrollReg[1]) p[1] = this.scrollReg[1] - 1;
+      }
+      this._placeCursor(p[0], p[1]);
     },
 
     /* Move the cursor relatively whilst respecting the scrolling region */
@@ -1928,7 +1941,9 @@ this.Terminal = function() {
      * value
      * A true value enabled the mode, a false one disables it. */
     setMode: function(code, value) {
-      this.modes[Terminal.MODE_CODES[code] || code] = value;
+      var name = Terminal.MODE_CODES[code] || code;
+      this.modes[name] = value;
+      if (name == "origin" && value) this.placeCursor();
     },
 
     /* Install a handler for a CSI sequence
