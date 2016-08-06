@@ -556,20 +556,24 @@ this.Terminal = function() {
 
   /* Default mode flags */
   Terminal.DEFAULT_MODES = {
-    displayControls: false, /* Display certain control characters */
-    insert         : false, /* Insert characters instead of overwriting */
-    lfAtCR         : false, /* Follow a CR typed by the user with a LF */
-    wideTerm       : false, /* 132-column mode. No effect. */
-    origin         : false, /* Origin mode: Home at scrolling region */
-    autowrap       : true,  /* Automatically wrap lines when overflowing */
+    applicationKeypad: false, /* Send editing functions rather than digits */
+    displayControls  : false, /* Display certain control characters */
+    insert           : false, /* Insert characters instead of overwriting */
+    lfAtCR           : false, /* Follow a CR typed by the user with a LF */
+    applicationCursor: false, /* Send ^[O rather than ^[[ for cursor keys */
+    wideTerm         : false, /* 132-column mode. No effect. */
+    origin           : false, /* Origin mode: Home at scrolling region */
+    autowrap         : true,  /* Automatically wrap lines when overflowing */
   };
 
   /* Mapping from escape sequence parameter strings to mode names as used
    * by Terminal */
   Terminal.MODE_CODES = {
+    /* applicationKeypad is controlled differently */
     "3" : "displayControls",
     "4" : "insert",
     "20": "lfAtCR",
+    "?1": "applicationCursor",
     "?3": "wideTerm",
     "?6": "origin",
     "?7": "autowrap",
@@ -625,6 +629,10 @@ this.Terminal = function() {
         this.params = "";
         this.func = "";
       });
+      esc.on(">", callAndReturn(self.setMode, self,
+                                ["applicationKeypad", false]));
+      esc.on("=", callAndReturn(self.setMode, self,
+                                ["applicationKeypad", true]));
       var csiP = csi.on("0-?", function(ch) {
         this.params += ch;
       });
@@ -837,6 +845,16 @@ this.Terminal = function() {
         } else {
           res = event.key;
         }
+        /* Translate keypad keys */
+        if (this.modes.applicationKeypad && /^Numpad/.test(event.code)) {
+          res = {
+            " ": "\x1bO ", "\t": "\x1bO\t", "\r": "\x1bO\r", "/": "\x1bOo",
+            "*": "\x1bOj", "-": "\x1bOm", "+": "\x1bOk", ".": "\x1b[3~",
+            ",": "\x1bOl", "=": "\x1bOX", "0": "\x1b[2~", "1": "\x1bOF",
+            "2": "\x1b[B", "3": "\x1b[6~", "4": "\x1b[D", "5": "\x1b[E",
+            "6": "\x1b[C", "7": "\x1bOH", "8": "\x1b[A", "9": "\x1b[5~"
+          }[res] || res;
+        }
       } else {
         /* Function keys */
         // And now welcome to the Marvellous Diverse Historically-Grown Lands
@@ -876,6 +894,10 @@ this.Terminal = function() {
         if (/[\t\r]/.test(res) && event.shiftKey) {
           res = (res == "\t") ? "\x1b[Z" : "\x1bOM";
           shiftMask = false;
+        }
+        /* Translate cursor keys */
+        if (this.modes.applicationCursor && /^\x1b\[[ABCDHF]$/.test(res)) {
+          res = res.replace(/\[/, "O");
         }
       }
       /* Process modifiers */
