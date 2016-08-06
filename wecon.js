@@ -227,8 +227,13 @@ this.Terminal = function() {
               for (;;) {
                 var ns = this.cur._changed(this.state, ch);
                 if (ns == null) break;
-                this.cur = ns;
-                ch = null;
+                if (Array.isArray(ns)) {
+                  this.cur = ns[0] || this.cur;
+                  ch = ns[1] || null;
+                } else {
+                  this.cur = ns;
+                  ch = null;
+                }
               }
             } else {
               /* Finish reset */
@@ -273,8 +278,9 @@ this.Terminal = function() {
    *             character that caused the transition (null if resetting to
    *             the initial state) and the EscapeParser.State instance the
    *             callback belongs to. Returns a new state to switch to (the
-   *             callback whereof will be called as well, etc), or null to
-   *             stay at the current state.
+   *             callback whereof will be called as well, etc), a 2-array
+   *             [state, ch] of a state and a synthetic character to pass to
+   *             the next state, or null to stay at the current state.
    * successors: A character->state mapping of successor states.
    * fallback  : A callback that is invoked when no state from the successor
    *             mapping matched. The return value (if true) is taken to be
@@ -620,7 +626,8 @@ this.Terminal = function() {
       esc.on(" !\"#%&()*+./-", null, function() { return first; });
       esc.on("@-_", function(ch) {
         var cc = ch.charCodeAt(0) + 64;
-        return first.successors[String.fromCharCode(cc)] || null;
+        var cs = String.fromCharCode(cc);
+        return [first.successors[cs] || first, cs];
       });
       esc.on("`-~"); // Ignore.
       esc.on("c", callAndReturn(self.reset, self));
@@ -2049,7 +2056,7 @@ this.Terminal = function() {
             this.newLine(false, true, true);
             break;
           default:
-            this._accum.addText(ch);
+            this._handleText(ch);
         }
       }
     },
