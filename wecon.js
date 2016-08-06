@@ -570,19 +570,21 @@ this.Terminal = function() {
     wideTerm         : false, /* 132-column mode. No effect. */
     origin           : false, /* Origin mode: Home at scrolling region */
     autowrap         : true,  /* Automatically wrap lines when overflowing */
+    cursorVisible    : true,  /* Whether the cursor should be visible */
   };
 
   /* Mapping from escape sequence parameter strings to mode names as used
    * by Terminal */
   Terminal.MODE_CODES = {
     /* applicationKeypad is controlled differently */
-    "3" : "displayControls",
-    "4" : "insert",
-    "20": "lfAtCR",
-    "?1": "applicationCursor",
-    "?3": "wideTerm",
-    "?6": "origin",
-    "?7": "autowrap",
+    "3"  : "displayControls",
+    "4"  : "insert",
+    "20" : "lfAtCR",
+    "?1" : "applicationCursor",
+    "?3" : "wideTerm",
+    "?6" : "origin",
+    "?7" : "autowrap",
+    "?25": "cursorVisible",
   };
 
   /* Try to parse a (non-private) parameter string according to ECMA-48 */
@@ -1256,21 +1258,24 @@ this.Terminal = function() {
       /* Check whether overflowing */
       var overflow = (x >= this.width);
       if (overflow) x = this.width;
-      /* Extract current cell */
+      /* Extract some line */
       var line = this.growLines(y);
-      var cell = this.growCells(line, x, false);
       /* Remove old cursor */
       var cursor = line.parentNode.getElementsByClassName("cursor")[0];
       if (cursor) {
         cursor.classList.remove("cursor");
         cursor.classList.remove("overflow");
       }
-      /* Install new cursor */
-      cell.classList.add("cursor");
-      if (overflow) cell.classList.add("overflow");
       /* Write back cursor coordinates */
       this.curPos[0] = x;
       this.curPos[1] = y;
+      /* Abort if cursor invisible */
+      if (! this.modes.cursorVisible) return;
+      /* Extract current cell */
+      var cell = this.growCells(line, x, false);
+      /* Install new cursor */
+      cell.classList.add("cursor");
+      if (overflow) cell.classList.add("overflow");
     },
 
     /* Place the cursor at the given coordinates
@@ -1976,7 +1981,9 @@ this.Terminal = function() {
     setMode: function(code, value) {
       var name = Terminal.MODE_CODES[code] || code;
       this.modes[name] = value;
-      if (name == "origin" && value) this.placeCursor();
+      if (name == "origin" || name == "cursorVisible") {
+        this.placeCursor();
+      }
     },
 
     /* Install a handler for a CSI sequence
