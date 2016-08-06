@@ -531,6 +531,14 @@ this.Terminal = function() {
   var RGB_FG = /\bfg-rgb-\d+-\d+-\d+\b/;
   var RGB_BG = /\bbg-rgb-\d+-\d+-\d+\b/;
 
+  /* Helper that translates an RGB attribute to a CSS declaration */
+  function parseRGB(clr) {
+    if (! clr) return "";
+    var m = RGB_COLOR.exec(clr);
+    if (! m) return "";
+    return "rgb(" + m[1] + "," + m[2] + "," + m[3] + ")";
+  }
+
   /* Text attribute bits */
   Terminal.ATTR = {
     BOLD        :   1, /* Bold */
@@ -568,6 +576,7 @@ this.Terminal = function() {
     lfAtCR           : false, /* Follow a CR typed by the user with a LF */
     applicationCursor: false, /* Send ^[O rather than ^[[ for cursor keys */
     wideTerm         : false, /* 132-column mode. No effect. */
+    reverseVideo     : false, /* Reverse all video (additionally) */
     origin           : false, /* Origin mode: Home at scrolling region */
     autowrap         : true,  /* Automatically wrap lines when overflowing */
     cursorVisible    : true,  /* Whether the cursor should be visible */
@@ -582,6 +591,7 @@ this.Terminal = function() {
     "20" : "lfAtCR",
     "?1" : "applicationCursor",
     "?3" : "wideTerm",
+    "?5" : "reverseVideo",
     "?6" : "origin",
     "?7" : "autowrap",
     "?25": "cursorVisible",
@@ -1120,6 +1130,8 @@ this.Terminal = function() {
         node.classList.add("visible");
         /* Update current ID */
         this._currentScreen = id;
+        /* Update reversed-video state */
+        this.reverseVideo();
         /* Update node size */
         this.resize(true);
       } else {
@@ -1348,73 +1360,90 @@ this.Terminal = function() {
      * to any cell it's called on
      * If base is null, the terminal's current attributes are used.
      * If base is a DOM node, its data-attrs attribute is applied.
+     * If base is a string, it itself is applied.
      * If amend is true, missing (i.e. === undefined) attribute values are
      * amended from this.curFg, this.curBg, this.curAttrs, this.modes,
      * respectively.
      */
     _prepareAttrs: function(base, amend) {
-      function parseRGB(clr) {
-        if (! clr) return "";
-        var m = RGB_COLOR.exec(clr);
-        if (! m) return "";
-        return "rgb(" + m[1] + "," + m[2] + "," + m[3] + ")";
-      }
       /* Resolve attributes */
       var attrs = "", styleFG = "", styleBG = "";
       var region = null, modes = null;
-      if (base == null || typeof base != "object")
+      if (base == null || typeof base != "object" && typeof base != "string")
         base = {attrs: this.curAttrs, fg: this.curFg, bg: this.curBg,
                 modes: cloneObject(this.modes)};
+      /* Convert DOM node to string */
       if (typeof base == "object" && base.nodeType !== undefined) {
-        attrs = base.getAttribute("data-attrs") || "";
-        var m = RGB_FG.exec(attrs);
-        if (m) styleFG = parseRGB(m[0]);
-        m = RGB_BG.exec(attrs);
-        if (m) styleBG = parseRGB(m[0]);
-      } else {
-        /* Possibly amend */
-        if (amend) {
-          if (base.fg === undefined) base.fg = this.curFg;
-          if (base.bg === undefined) base.bg = this.curBg;
-          if (base.attrs === undefined) base.attrs = this.curAttrs;
-          if (base.modes === undefined) base.modes = cloneObject(this.modes);
-        }
-        /* Scan attributes */
-        for (var i = 1; i <= Terminal.ATTR._MAX; i <<= 1) {
-          if (base.attrs & i) attrs += " " + Terminal.ATTRNAME[i];
-        }
-        /* Special-case reverse video */
-        if (base.attrs & Terminal.ATTR.REVERSE)
+        base = base.getAttribute("data-attrs") || "";
+      }
+      /* Parse string */
+      if (typeof base == "string") {
+        var src = base;
+        base = {fg: null, bg: null, attrs: 0};
+        src.split(" ").forEach(function(el) {
+          if (! el) return;
+          if (/^fg-/.test(el)) base.fg = el.substring(3);
+          if (/^bg-/.test(el)) base.bg = el.substring(3);
+          var n = Terminal.ATTR[el.toUpperCase()];
+          if (n != null) base.attrs |= n;
+        });
+        if (/^r?default$/.test(base.fg)) base.fg = null;
+        if (/^r?default$/.test(base.bg)) base.bg = null;
+        /* Undo reverse video */
+        if ((!! (base.attrs & Terminal.ATTR.REVERSE)) ^
+            (!! /\brevVideo\b/.test(src))) {
           base = {fg: base.bg, bg: base.fg, attrs: base.attrs};
-        /* Foreground and background */
-        if (base.fg != null) {
-          attrs += " fg-" + base.fg;
-          styleFG = parseRGB(base.fg);
-        } else {
-          attrs += " fg-default";
-        }
-        if (base.bg != null) {
-          attrs += " bg-" + base.bg;
-          styleBG = parseRGB(base.bg);
-        } else {
-          attrs += " bg-default";
-        }
-        /* Strip leading space */
-        attrs = attrs.replace(/^ /, "");
-        /* Appply scrolling region / modes */
-        if (base.region) region = base.region;
-        /* Merge modes */
-        if (base.modes) {
-          modes = cloneObject(base.modes);
-          for (var k in this.modes) {
-            if (! this.modes.hasOwnProperty(k) || modes.hasOwnProperty(k))
-              continue;
-            modes[k] = this.modes[k];
-          }
-        } else {
-          modes = cloneObject(this.modes);
         }
       }
+      /* Possibly amend */
+      if (amend) {
+        if (base.fg === undefined) base.fg = this.curFg;
+        if (base.bg === undefined) base.bg = this.curBg;
+        if (base.attrs === undefined) base.attrs = this.curAttrs;
+        if (base.modes === undefined) base.modes = cloneObject(this.modes);
+      }
+      /* Scan attributes */
+      for (var i = 1; i <= Terminal.ATTR._MAX; i <<= 1) {
+        if (base.attrs & i) attrs += " " + Terminal.ATTRNAME[i];
+      }
+      /* Merge modes */
+      if (base.modes) {
+        modes = cloneObject(base.modes);
+        for (var k in this.modes) {
+          if (! this.modes.hasOwnProperty(k) || modes.hasOwnProperty(k))
+            continue;
+          modes[k] = this.modes[k];
+        }
+      } else {
+        modes = cloneObject(this.modes);
+      }
+      /* Special-case reverse video */
+      var reversed = false;
+      if ((!! (base.attrs & Terminal.ATTR.REVERSE)) ^
+          (!! modes.reverseVideo)) {
+        reversed = true;
+        base = {fg: base.bg, bg: base.fg, attrs: base.attrs,
+                region: base.region, modes: base.modes};
+      }
+      /* Foreground and background */
+      if (base.fg != null) {
+        attrs += " fg-" + base.fg;
+        styleFG = parseRGB(base.fg);
+      } else {
+        attrs += (reversed) ? " fg-rdefault" : " fg-default";
+      }
+      if (base.bg != null) {
+        attrs += " bg-" + base.bg;
+        styleBG = parseRGB(base.bg);
+      } else {
+        attrs += (reversed) ? " bg-rdefault" : " bg-default";
+      }
+      /* Strip leading space */
+      attrs = attrs.replace(/^ /, "");
+      /* Appply scrolling region / modes */
+      if (base.region) region = base.region;
+      /* Account for reverse video */
+      if (modes.reverseVideo) attrs += " revVideo";
       /* Resolve scrolling region */
       if (! region && this.scrollReg)
         region = [this.scrollReg[0], this.scrollReg[1]];
@@ -1983,6 +2012,45 @@ this.Terminal = function() {
       this.modes[name] = value;
       if (name == "origin" || name == "cursorVisible") {
         this.placeCursor();
+      } else if (name == "reverseVideo") {
+        this.reverseVideo();
+      }
+    },
+
+    /* Reverse video (or un-reverse it) globally
+     * Sections with the reverse video attribute set become "normal".
+     */
+    reverseVideo: function(value) {
+      /* Helper */
+      reverse = function(node) {
+        var attrs = node.getAttribute("data-attrs") || "";
+        var func = attrCache[attrs];
+        if (! func) {
+          func = this._prepareAttrs(attrs);
+          attrCache[attrs] = func;
+        }
+        func(node);
+      }.bind(this);
+      var attrCache = {};
+      /* Update instance state */
+      if (value == undefined) {
+        value = this.modes.reverseVideo;
+      } else {
+        this.modes.reverseVideo = value;
+      }
+      /* We can do while not mounted, but that should not be relied
+       * upon */
+      if (! this.node) return;
+      /* Check if node is already reversed; apply attribute */
+      var cntNode = this._contentNode();
+      var attrs = cntNode.getAttribute("data-attrs") || "";
+      var isReversed = /\brevVideo\b/.test(attrs);
+      /* Check whether to reverse */
+      if ((!! value) != (!! isReversed)) {
+        /* Reverse! */
+        reverse(cntNode);
+        var nodes = cntNode.querySelectorAll("*");
+        Array.prototype.forEach.call(nodes, reverse);
       }
     },
 
