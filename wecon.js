@@ -1038,6 +1038,8 @@ this.Terminal = function() {
         this.curPos[1] -= shift;
         this._offscreenLines += shift;
       }
+      /* Prepare for auto-scroll */
+      var scroll = this._prepareScroll();
       /* Determine necessary line amount */
       var content = this._contentNode();
       var lines = content.children;
@@ -1055,6 +1057,8 @@ this.Terminal = function() {
       }
       /* Update cursor node */
       this._placeCursor();
+      /* Auto-scroll */
+      scroll();
     },
 
     /* Return a closure that scrolls the terminal window as appropriate
@@ -1282,8 +1286,8 @@ this.Terminal = function() {
 
     /* Move the cursor relatively to its current position */
     moveCursor: function(dx, dy) {
-      var p = this._resolvePosition(this.curPos[0] + (dx || 0),
-                                    this.curPos[1] + (dy || 0));
+      var p = this._resolvePosition([this.curPos[0] + (dx || 0),
+                                     this.curPos[1] + (dy || 0)]);
       if (this.modes.origin && this.scrollReg) {
         p[1] += this.scrollReg[0];
         if (p[1] >= this.scrollReg[1]) p[1] = this.scrollReg[1] - 1;
