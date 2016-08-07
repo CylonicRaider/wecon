@@ -2020,6 +2020,10 @@ this.Terminal = function() {
      * value
      * A true value enabled the mode, a false one disables it. */
     setMode: function(code, value) {
+      if (/^\?(47|1047|1049)$/.test(code)) {
+        this.selectScreen((value) ? 1 : 0);
+        return;
+      }
       var name = Terminal.MODE_CODES[code] || code;
       this.modes[name] = value;
       if (name == "origin" || name == "cursorVisible") {
