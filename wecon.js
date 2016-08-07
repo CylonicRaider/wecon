@@ -1925,6 +1925,7 @@ this.Terminal = function() {
     tabulate: function(n) {
       if (n == null) n = 1;
       for (var i = 0; i < n; i++) this._tabulate();
+      this._placeCursor();
     },
 
     /* Set the scrolling region
