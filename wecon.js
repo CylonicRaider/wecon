@@ -691,11 +691,40 @@ this.Terminal = function() {
       csiP.on("@-~", csiF);
       csiI.on(" -/", csiI);
       csiI.on("@-~", csiF);
+      var strC = first.on("\x90\x9d-\x9f", function(ch) {
+        if (/[\x90\x9d-\x9f]/.test(ch))
+          this.string = ch;
+      }, function(ch) {
+        if (/[\0-\x07\x0e-\x1f\x7f]/.test(ch))
+          return null;
+        this.string += ch;
+        return strC;
+      });
+      var strST = strC.on("\x07\x9c", function() {
+        self._accum.addCall(self.handleCSTR, self, [this.string]);
+        delete this.string;
+        return first;
+      });
+      strC.on("\x1b").on("\\", strST);
+      var strS = first.on("\x98", function(ch) {
+        if (ch == "\x98")
+          this.string = ch;
+      }, function(ch) {
+        this.string += ch;
+        return strS;
+      });
+      strS.on("\x9c", strST);
+      strS.on("\x1b", null, function(ch) {
+        this.string += "\x1b" + ch;
+        return strS;
+      }).on("\\", strST);
       this.parser.fallback = function(ch) {
+        delete this.csi;
+        delete this.params;
+        delete this.func;
+        delete this.string;
         if (/[\x18\x1a]/.test(ch) && ! self.modes.displayControls) {
-          delete this.csi;
-          delete this.params;
-          delete this.func;
+          /* NOP */
         } else {
           self._accum.addText(ch);
         }
@@ -2281,6 +2310,15 @@ this.Terminal = function() {
       if (! handler) return false;
       if (handler.call(this, params) === false) return false;
       return true;
+    },
+
+    /* Handle a control string
+     * string holds the control (or character) string, excluding the final
+     * string terminator, but including the (single-character) control code
+     * that initiated the string.
+     */
+    handleCSTR: function(string) {
+      /* None implemented. */
     },
 
     /* Handle single-character C0 and C1 controls */
