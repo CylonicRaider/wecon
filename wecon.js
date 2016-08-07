@@ -1424,6 +1424,7 @@ this.Terminal = function() {
       for (var i = 1; i <= Terminal.ATTR._MAX; i <<= 1) {
         if (base.attrs & i) attrs += " " + Terminal.ATTRNAME[i];
       }
+      var blinking = (base.attrs & Terminal.ATTR.BLINK);
       /* Merge modes */
       if (base.modes) {
         modes = cloneObject(base.modes);
@@ -1466,20 +1467,13 @@ this.Terminal = function() {
       if (! region && this.scrollReg)
         region = [this.scrollReg[0], this.scrollReg[1]];
       /* Result */
-      var ret;
-      if (attrs) {
-        ret = function(node) {
-          node.setAttribute("data-attrs", attrs);
-          node.style.color = styleFG;
-          node.style.background = styleBG;
-        };
-      } else {
-        ret = function(node) {
-          node.removeAttribute("data-attrs");
-          node.style.color = "";
-          node.style.background = "";
-        };
-      }
+      var ret = function(node) {
+        node.setAttribute("data-attrs", attrs);
+        node.style.color = styleFG;
+        node.style.background = styleBG;
+        if (blinking)
+          node.style.animationDelay = "-" + (Date.now() % 1000) + "ms";
+      };
       /* Amend further attributes */
       ret.region = region;
       ret.modes = modes;
