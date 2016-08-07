@@ -916,9 +916,10 @@ this.Terminal = function() {
           // Since only some ASCII characters are handled like that, we don't
           // need fancy Unicode codepoints.
           var ch = event.key.charCodeAt(0);
-          // Shift does not matter. Theoretically, it should also not matter
-          // for special characters, but Ctrl-2 is meaningless when there
-          // Shift-2 isn't "@".
+          // Bail out for Ctrl-Shift-Letter sequences to allow some keyboard
+          // shortcuts to function.
+          if (/[A-Z]/.test(event.key)) return;
+          /* Transform letters to uppercase for ASCII magic */
           if (/[a-z]/.test(event.key)) ch ^= 0x20;
           if (ch == 0x20) {
             // Ctrl-Space. Don't ask me why.
