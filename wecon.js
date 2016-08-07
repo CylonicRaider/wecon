@@ -517,7 +517,9 @@ this.Terminal = function() {
     this._decoder = new UTF8Dec();
     this._accum = new TextAccumulator();
     this._keydown = this.keydown.bind(this);
+    this._keyup = this.keyup.bind(this);
     this._resize = this.resize.bind(this);
+    this._lastKey = null;
     this._pendingBells = [];
     this._pendingUpdate = [null, null];
     this._queuedInput = [];
@@ -579,6 +581,7 @@ this.Terminal = function() {
     reverseVideo     : false, /* Reverse all video (additionally) */
     origin           : false, /* Origin mode: Home at scrolling region */
     autowrap         : true,  /* Automatically wrap lines when overflowing */
+    autoRepeat       : true,  /* Suppress key auto-repetition if off */
     cursorVisible    : true,  /* Whether the cursor should be visible */
   };
 
@@ -594,6 +597,7 @@ this.Terminal = function() {
     "?5" : "reverseVideo",
     "?6" : "origin",
     "?7" : "autowrap",
+    "?8" : "autoRepeat",
     "?25": "cursorVisible",
   };
 
@@ -805,6 +809,7 @@ this.Terminal = function() {
       this.node = node;
       node.classList.add("wecon");
       node.addEventListener("keydown", this._keydown);
+      node.addEventListener("keyup", this._keyup);
       window.addEventListener("resize", this._resize);
       this._oldSize = null;
       this.selectScreen(this._currentScreen);
@@ -820,6 +825,7 @@ this.Terminal = function() {
         this.node.classList.remove("wecon");
         this.node.innerHTML = "";
         this.node.removeEventListener("keydown", this._keydown);
+        this.node.removeEventListener("keyup", this._keyup);
         window.removeEventListener("resize", this._resize);
       }
       this._oldSize = null;
@@ -839,6 +845,11 @@ this.Terminal = function() {
         console.warn("Swallowing key event:", event);
         return;
       }
+      /* Honor auto-repeat suppression */
+      if (! this.modes.autoRepeat && this._lastKey &&
+          event.code == this._lastKey) return;
+      this._lastKey = event.code;
+      /* Result */
       var res = null, shiftMask = true;
       /* Character input */
       if (SINGLE_CODEPOINT.test(event.key)) {
@@ -951,6 +962,13 @@ this.Terminal = function() {
         event.preventDefault();
         event.stopPropagation();
       }
+    },
+
+    /* Handle a released key
+     * Does not really do much.
+     */
+    keyup: function() {
+      this._lastKey = null;
     },
 
     /* Update the sizes of the content area and the container */
