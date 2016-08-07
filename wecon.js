@@ -490,6 +490,12 @@ this.Terminal = function() {
    *              explicit scrolling region. The scrollback buffer is filled
    *              by lines scrolling off the top only if there is no
    *              scrolling region or the top is at row 0.
+   * mouseTrack : Mouse tracking mode (0 = none; 1 = X10 style; 2 = X11
+   *              style; 3 = X11 drag tracking; 4 = X11 motion tracking). See
+   *              xterm docs (NOTE that those use different terminology).
+   * mouseEncode: Mouse tracking coordinate encoding (0 = truncate to single
+   *              octet; 1 = encode as UTF-8; 2 = emit "CSI <" sequence). See
+   *              xterm docs.
    * modes      : An object of mode flags. See Terminal.DEFAULT_MODES for
    *              default assignments.
    * savedAttrs : The last attribute save as recorded by saveAttributes()
@@ -518,8 +524,15 @@ this.Terminal = function() {
     this._accum = new TextAccumulator();
     this._keydown = this.keydown.bind(this);
     this._keyup = this.keyup.bind(this);
+    this._mousemove = this.mousemove.bind(this);
+    this._mousedown = this.mousedown.bind(this);
+    this._mouseup = this.mouseup.bind(this);
+    this._mousewheel = this.mousewheel.bind(this);
+    this._focusin = this.focusin.bind(this);
+    this._focusout = this.focusout.bind(this);
     this._resize = this.resize.bind(this);
     this._lastKey = null;
+    this._lastMouse = null;
     this._pendingBells = [];
     this._pendingUpdate = [null, null];
     this._queuedInput = [];
@@ -583,22 +596,24 @@ this.Terminal = function() {
     autowrap         : true,  /* Automatically wrap lines when overflowing */
     autoRepeat       : true,  /* Suppress key auto-repetition if off */
     cursorVisible    : true,  /* Whether the cursor should be visible */
+    trackFocus       : false, /* Send escape sequences on focus changes */
   };
 
   /* Mapping from escape sequence parameter strings to mode names as used
    * by Terminal */
   Terminal.MODE_CODES = {
     /* applicationKeypad is controlled differently */
-    "3"  : "displayControls",
-    "4"  : "insert",
-    "20" : "lfAtCR",
-    "?1" : "applicationCursor",
-    "?3" : "wideTerm",
-    "?5" : "reverseVideo",
-    "?6" : "origin",
-    "?7" : "autowrap",
-    "?8" : "autoRepeat",
-    "?25": "cursorVisible",
+    "3"    : "displayControls",
+    "4"    : "insert",
+    "20"   : "lfAtCR",
+    "?1"   : "applicationCursor",
+    "?3"   : "wideTerm",
+    "?5"   : "reverseVideo",
+    "?6"   : "origin",
+    "?7"   : "autowrap",
+    "?8"   : "autoRepeat",
+    "?25"  : "cursorVisible",
+    "?1004": "trackFocus"
   };
 
   /* Try to parse a (non-private) parameter string according to ECMA-48 */
@@ -781,6 +796,8 @@ this.Terminal = function() {
         this.curAttrs = 0;
         this.tabStops = {};
         this.scrollReg = null;
+        this.mouseTrack = 0;
+        this.mouseEncode = 0;
         this.modes = cloneObject(Terminal.DEFAULT_MODES);
         this._offscreenLines = 0;
         if (this.node) {
@@ -810,6 +827,12 @@ this.Terminal = function() {
       node.classList.add("wecon");
       node.addEventListener("keydown", this._keydown);
       node.addEventListener("keyup", this._keyup);
+      node.addEventListener("mousemove", this._mousemove);
+      node.addEventListener("mousedown", this._mousedown);
+      node.addEventListener("mouseup", this._mouseup);
+      node.addEventListener("wheel", this._mousewheel);
+      node.addEventListener("focus", this._focusin);
+      node.addEventListener("blur", this._focusout);
       window.addEventListener("resize", this._resize);
       this._oldSize = null;
       this.selectScreen(this._currentScreen);
@@ -826,6 +849,12 @@ this.Terminal = function() {
         this.node.innerHTML = "";
         this.node.removeEventListener("keydown", this._keydown);
         this.node.removeEventListener("keyup", this._keyup);
+        this.node.removeEventListener("mousemove", this._mousemove);
+        this.node.removeEventListener("mousedown", this._mousedown);
+        this.node.removeEventListener("mouseup", this._mouseup);
+        this.node.removeEventListener("wheel", this._mousewheel);
+        this.node.removeEventListener("focus", this._focusin);
+        this.node.removeEventListener("blur", this._focusout);
         window.removeEventListener("resize", this._resize);
       }
       this._oldSize = null;
@@ -969,6 +998,128 @@ this.Terminal = function() {
      */
     keyup: function() {
       this._lastKey = null;
+    },
+
+    /* Handle mouse motion event */
+    mousemove: function(event) {
+      if (this.mouseTrack <= 2 || event.target == this.node)
+        return;
+      this._sendMouse(event, "moved");
+    },
+
+    /* Handle mouse button press event */
+    mousedown: function(event) {
+      if (! this.mouseTrack || event.target != this._contentNode())
+        return;
+      this._sendMouse(event, "pressed");
+    },
+
+    /* Handle mouse button release event */
+    mouseup: function(event) {
+      if (this.mouseTrack <= 1 || event.target != this._contentNode())
+        return;
+      this._sendMouse(event, "released");
+    },
+
+    /* Handle mouse wheel event */
+    mousewheel: function(event) {
+      if (this.mouseTrack <= 1 || event.target != this._contentNode() ||
+          event.deltaY == 0)
+        return;
+      this._sendMouse(event, (event.deltaY < 0) ? "scrollup" : "scrolldown");
+    },
+
+    /* Common code for all mouse event handlers */
+    _sendMouse: function(event, extra) {
+      /* Bail out when this event is not tracked */
+      if (extra == "moved" && this.mouseTrack == 3 && ! event.buttons & 7)
+        return;
+      /* Resolve position */
+      var cnt = this._contentNode();
+      var rect = cnt.getBoundingClientRect();
+      var measure = getComputedStyle(cnt, "::before");
+      var x = (event.clientX - rect.left) / parseInt(measure.width) | 0;
+      var y = (event.clientY - rect.top) / parseInt(measure.height) | 0;
+      if (x < 0 || x >= this.size[0] || y < 0 || y >= this.size[1])
+        return;
+      /* Resolve button */
+      var btn, released = null;
+      if (extra == "pressed" || extra == "released") {
+        btn = event.button;
+        if (btn > 2) return;
+        released = (extra == "released");
+      } else if (extra == "moved") {
+        if (event.buttons & 1) {
+          btn = 0;
+        } else if (event.buttons & 2) {
+          btn = 2;
+        } else if (event.buttons & 4) {
+          btn = 1;
+        } else if (this.mouseTrack < 4) {
+          return;
+        } else {
+          btn = 3;
+        }
+      } else if (extra == "scrollup") {
+        btn = 4;
+      } else if (extra == "scrolldown") {
+        btn = 5;
+      }
+      /* Assemble packet to send */
+      var packet;
+      if (this.mouseTrack == 1) {
+        packet = [btn, x, y];
+      } else {
+        if (btn >= 4) btn = (btn - 4) | 64;
+        btn |= (!! event.shiftKey) << 2 | (!! event.ctrlKey) << 3 |
+               (!! event.altKey) << 4;
+        if (extra == "moved") btn |= 32;
+        packet = [btn, x, y, released];
+        /* Discard duplicate events */
+        if (this._lastMouse &&
+            packet[0] == this._lastMouse[0] &&
+            packet[1] == this._lastMouse[1] &&
+            packet[2] == this._lastMouse[2] &&
+            packet[3] == this._lastMouse[3]) return;
+        this._lastMouse = packet;
+      }
+      /* Encode packet */
+      var coded;
+      if (this.mouseEncode == 0) {
+        /* Truncated raw bytes */
+        if (released) packet[0] |= 3;
+        coded = new Uint8Array(6);
+        coded[0] = 0x1b; // ESC
+        coded[1] = 0x5b; // [
+        coded[2] = 0x4d; // M
+        coded[3] = packet[0] + 0x20;
+        coded[4] = Math.min(packet[1] + 0x21, 0xFF);
+        coded[5] = Math.min(packet[2] + 0x21, 0xFF);
+      } else if (this.mouseEncode == 1) {
+        /* UTF-8 encoding */
+        if (released) packet[0] |= 3;
+        coded = "\x1b[M" + String.fromCharCode(packet[0] + 0x20) +
+                UTF8Dec.prototype._fromCodePoint(packet[1] + 0x21) +
+                UTF8Dec.prototype._fromCodePoint(packet[2] + 0x21);
+      } else if (this.mouseEncode == 2) {
+        /* Special CSI sequence */
+        coded = "\x1b[<" + packet[0] + ";" + (packet[1] + 1) + ";" +
+                (packet[2] + 1) + ((released) ? "m" : "M");
+      } else {
+        throw new Error("Bad internal state");
+      }
+      /* Send! */
+      this._queueInput(coded);
+    },
+
+    /* Handle focus entering the terminal */
+    focusin: function() {
+      if (this.modes.trackFocus) this._queueInput("\x1b[I");
+    },
+
+    /* Handle focus leaving the terminal */
+    focusout: function() {
+      if (this.modes.trackFocus) this._queueInput("\x1b[O");
     },
 
     /* Update the sizes of the content area and the container */
@@ -2023,6 +2174,17 @@ this.Terminal = function() {
     setMode: function(code, value) {
       if (/^\?(47|1047|1049)$/.test(code)) {
         this.selectScreen((value) ? 1 : 0);
+        return;
+      } else if (/^\?(9|100[02356])$/.test(code)) {
+        switch (code) {
+          case "?9": this.mouseTrack = (value) ? 1 : 0; break;
+          case "?1000": this.mouseTrack = (value) ? 2 : 0; break;
+          case "?1002": this.mouseTrack = (value) ? 3 : 0; break;
+          case "?1003": this.mouseTrack = (value) ? 4 : 0; break;
+          case "?1005": this.mouseEncode = (value) ? 1 : 0; break;
+          case "?1006": this.mouseEncode = (value) ? 2 : 0; break;
+        }
+        this._lastMouse = null;
         return;
       }
       var name = Terminal.MODE_CODES[code] || code;
