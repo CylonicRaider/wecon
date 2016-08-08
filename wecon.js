@@ -661,6 +661,9 @@ this.Terminal = function() {
         var cs = String.fromCharCode(cc);
         return [first.successors[cs] || first, cs];
       });
+      esc.on("Z", function(ch) {
+        callAndReturn(self.handleCSI, self, [{params: "", func: "c"}]);
+      });
       esc.on("`-~"); // Ignore.
       esc.on("c", callAndReturn(self.reset, self));
       var csi = first.on("\x9b", function() {
@@ -793,6 +796,7 @@ this.Terminal = function() {
       /* Other not implemented functions are henceforth not mentioned */
       ih("X", function(n) { this.spliceCharacters(null, n || 1, n || 1); });
       ih("a", function(n) { this.moveCursor(n || 1, 0); });
+      ih("c", function() { this._queueInput("\x1b[?6c"); });
       ih("d", function(n) { this.moveCursor(null, n || 1); });
       ih("e", function(n) { this.navigateCursor(0, n || 1); });
       ih("f", function(y, x) { this.moveCursor(x - 1, y - 1); });
