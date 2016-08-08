@@ -794,7 +794,11 @@ this.Terminal = function() {
       /* N (EF - ERASE IN FIELD) and O (EA - ERASE IN AREA) are N/I */
       ih("P", function(n) { this.spliceCharacters(null, n || 1, 0); });
       /* Other not implemented functions are henceforth not mentioned */
+      ih("S", function(n) { this.scroll(n || 1); });
+      ih("T", function(n) { this.scroll(-(n || 1)); });
       ih("X", function(n) { this.spliceCharacters(null, n || 1, n || 1); });
+      ih("Z", function(n) { this.tabulate(-(n || 1)); });
+      ih("`", function(n) { this.placeCursor(n || 1, null); });
       ih("a", function(n) { this.moveCursor(n || 1, 0); });
       ih("c", function() { this._queueInput("\x1b[?6c"); });
       ih("d", function(n) { this.moveCursor(null, n || 1); });
@@ -811,7 +815,6 @@ this.Terminal = function() {
                                this.placeCursor(0, 0); });
       ih("s", function() { this.saveAttributes(); });
       ih("u", function() { this.restoreAttributes(); });
-      ih("`", function(n) { this.moveCursor(n || 1, null); });
       is("?h", function(p) { this.setMode(p, true); });
       is("?l", function(p) { this.setMode(p, false); });
       is("?n", this._handleDSR); /* Also reply to private-mode DSR's. */
@@ -2107,10 +2110,23 @@ this.Terminal = function() {
       if (this.curPos[0] > this.size[0]) this.curPos[0] = this.size[0];
     },
 
+    /* Move the cursor to the previous horizontal tab stop */
+    _tabulateBack: function() {
+      do {
+        this.curPos[0]--;
+      } while (this.curPos[0] > 0 && ! this.tabStops[this.curPos[0]]);
+      if (this.curPos[0] < 0) this.curPos[0] = 0;
+    },
+
     /* Move the cursor by to the next horizontal tab stop n times */
     tabulate: function(n) {
-      if (n == null) n = 1;
-      for (var i = 0; i < n; i++) this._tabulate();
+      if (n == null) {
+        this._tabulate();
+      } else if (n > 0) {
+        for (var i = 0; i < n; i++) this._tabulate();
+      } else if (n < 0) {
+        for (var i = 0; i > n; i--) this._tabulateBack();
+      }
       this._placeCursor();
     },
 
