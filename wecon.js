@@ -653,8 +653,9 @@ this.Terminal = function() {
       esc.on("7", callAndReturn(self.saveAttributes, self));
       esc.on("8", callAndReturn(self.restoreAttributes, self));
       /* FIXME: Ignore any character after ECMA-35 character set
-       *        designators. */
+       *        designators etc. */
       esc.on(" !\"#%&()*+./-", null, function() { return first; });
+      esc.at("#").on("8", callAndReturn(self.doDECALN, self));
       esc.on("@-_", function(ch) {
         var cc = ch.charCodeAt(0) + 64;
         var cs = String.fromCharCode(cc);
@@ -2195,6 +2196,21 @@ this.Terminal = function() {
         if (start) bellRunner();
       } else {
         this.bell.play();
+      }
+    },
+
+    /* Fill the screen with E's
+     * Not really useful, but still fun.
+     */
+    doDECALN: function() {
+      var attrs = this._prepareAttrs();
+      for (var y = 0; y < this.size[1]; y++) {
+        var ln = this.growLines(y);
+        for (var x = 0; x < this.size[0]; x++) {
+          var cell = this.growCells(ln, x);
+          attrs(cell);
+          cell.textContent = "E";
+        }
       }
     },
 
