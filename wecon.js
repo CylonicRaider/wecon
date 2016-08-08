@@ -768,6 +768,13 @@ this.Terminal = function() {
           func.call(this, params.params);
         });
       }.bind(this);
+      /* Handler helpers */
+      var setPModes = function(modes, value) {
+        modes.split(";").forEach(function(el) {
+          if (! el) return;
+          this.setMode("?" + el.replace(/^\?/, ""), value);
+        }.bind(this));
+      }.bind(this);
       /* Actual handlers */
       ih("@", function(n) { this.spliceCharacters(null, 0, n || 1); });
       ih("A", function(n) { this.navigateCursor(0, -(n || 1)); });
@@ -807,16 +814,16 @@ this.Terminal = function() {
       ip("g", function(p) {
         if (g == 0) this.editTabStops(this.curPos[0], null);
         if (g == 3) this.editTabStops(this.getTabStops(), null); }, true);
-      ih("h", function(p) { this.setMode(p, true); });
-      ih("l", function(p) { this.setMode(p, false); });
+      ia("h", function(p) { this.setMode(p, true); });
+      ia("l", function(p) { this.setMode(p, false); });
       ia("m", this._handleSGR); /* Outlined because of complexity */
       is("n", this._handleDSR); /* Outlined because of complexity as well */
       ih("r", function(t, b) { this.setScrollRegion(t - 1, b - 1);
                                this.placeCursor(0, 0); });
       ih("s", function() { this.saveAttributes(); });
       ih("u", function() { this.restoreAttributes(); });
-      is("?h", function(p) { this.setMode(p, true); });
-      is("?l", function(p) { this.setMode(p, false); });
+      is("?h", function(p) { setPModes(p, true); });
+      is("?l", function(p) { setPModes(p, false); });
       is("?n", this._handleDSR); /* Also reply to private-mode DSR's. */
     },
 
