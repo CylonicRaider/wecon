@@ -460,9 +460,12 @@ this.Terminal = function() {
    *              arbitrarily many lines are stored.
    * oninput    : A callback called every time there is new input, unless
    *              there is already data buffered. The only parameter is a
-   *              DOM Event Object with the type set to "input" and the
+   *              DOM event object with the type set to "input" and the
    *              target to the Terminal instance; the return value is
    *              ignored. Use the read() method to extract queued input.
+   * onresize   : A callback called every time the size of the terminal
+   *              changes. The callback is passed a single DOM event object
+   *              as above, and the return value is similarly ignored.
    * Additional attributes:
    * node       : The DOM node the terminal is residing in.
    * size       : The actual size of the terminal as a [width, height] array
@@ -515,6 +518,7 @@ this.Terminal = function() {
     this.visualBell = options.visualBell;
     this.scrollback = options.scrollback;
     this.oninput = null;
+    this.onresize = null;
     this.node = null;
     this.savedAttrs = null;
     this.parser = new EscapeParser();
@@ -1249,6 +1253,12 @@ this.Terminal = function() {
       this._updatePadding();
       /* Scroll to bottom */
       scroll();
+      /* Call event handler */
+      if (this.onresize != null) {
+        var evt = new Event("resize");
+        evt.target = this;
+        this.onresize(evt);
+      }
     },
 
     /* Update for changed line amount */
